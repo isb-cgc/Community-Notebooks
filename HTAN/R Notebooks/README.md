@@ -1,0 +1,1 @@
+[R Studio](https://www.rstudio.com/) is recommended for running R Notebooks made available here as R markdown source files: .Rmd. Some compiled notebooks are made available as .md files, which can be viewed on the github website.

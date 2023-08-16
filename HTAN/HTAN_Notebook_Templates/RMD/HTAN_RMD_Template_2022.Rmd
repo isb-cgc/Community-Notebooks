@@ -1,0 +1,67 @@
+---
+title: "[Notebook Title Here (Goal or Example)]"
+author: "[Notebook Author Name Here] ([author email here])"
+date: "[Created or Edited Date Here]"
+output:
+  html_document:
+    highlight: tango
+    toc: true
+    toc_float:
+      collapsed: TRUE
+      smooth_scroll: false
+---
+```{r global options, echo = FALSE}
+#List other global opts here if relevant
+knitr::opts_chunk$set(fig.align="center") #Figures should be centered
+```
+
+# 1. Introduction & Overview 
+
+[HTAN](https://humantumoratlas.org/) is a National Cancer Institute (NCI)-funded Cancer Moonshot<sup>SM</sup> initiative to construct 3-dimensional atlases of the dynamic cellular, morphological, and molecular features of human cancers as they evolve from precancerous lesions to advanced disease. [Cell April 2020](https://www.sciencedirect.com/science/article/pii/S0092867420303469) 
+
+This notebook shows one example of how data can be accessed and analyzed using R programming software.
+
+### 1.1 Goal
+### 1.2 Inputs, Outputs, & Data (if applicable)
+### 1.3 Notes (if applicable) 
+
+# 2. Environment & Library Setup
+```{r}
+#List your additional libraries here
+suppressMessages(library(tidyverse))
+suppressMessages(library(bigrquery))
+suppressMessages(library(knitr))
+```
+
+# 3. Google Authentication
+
+Running the BigQuery cells in this notebook requires a Google Cloud Project, instructions for creating a project can be found in the [Google Documentation](https://cloud.google.com/resource-manager/docs/creating-managing-projects#console). The instance needs to be authorized to bill the project for queries. For more information on getting started in the cloud see [Quick Start Guide to ISB-CGC](https://nbviewer.org/github/isb-cgc/Community-Notebooks/blob/master/Notebooks/Quick_Start_Guide_to_ISB_CGC.ipynb) and alternative authentication methods can be found in the [Google Documentation](https://cloud.google.com/resource-manager/docs/creating-managing-projects#console).
+
+```{r eval = FALSE}
+billing <- 'my-project' # Insert your project ID in the ''
+if (billing == 'my-projectr') {
+  print('Please update the project number with your Google Cloud Project')
+}
+```
+
+```{r}
+#Relevant code here
+```
+
+# 4. [Main Analysis Name Here]
+### 4.1 Analysis Subheader 1
+```{r}
+#Relevant code here
+```
+
+### 4.2 Analysis Subheader 2
+```{r}
+#Relevant code here
+```
+
+### 4.3 Analysis Subheader n
+```{r}
+#Relevant code here
+```
+
+# 5. Relevant Citations and Links (if applicable)

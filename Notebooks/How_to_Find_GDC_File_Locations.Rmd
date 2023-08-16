@@ -1,0 +1,302 @@
+---
+title: "R How to Find GDC File Locations"
+output: rmarkdown::github_document
+---
+
+# ISB-CGC Community Notebooks
+
+Check out more notebooks at our [Community Notebooks Repository](https://github.com/isb-cgc/Community-Notebooks)!
+
+```
+Title:   How to Find GDC File Locations
+Author:  Lauren Hagen
+Created: 2019-08-13
+Purpose: Demonstrate how to find GDC file locations using manifests available in BigQuery
+URL:     https://github.com/isb-cgc/Community-Notebooks/blob/master/Notebooks/How_to_Find_GDC_File_Locations.Rmd
+Notes: 
+```
+***
+
+# How to Find GDC File Locations
+
+In this notebook, we will explore the data sets available in the [Genomic Data Commons](https://gdc.cancer.gov/) using the GDC metadata tables in BigQuery and find the file location within GDC. The metadata tables are useful because several of the available data sets in GDC are not yet available in the ISB-CGC WebApp or as BigQuery tables. This also means that the data sets can't be used with the ISB-CGC API's. The metadata tables can help you find which data sets are available in GDC along with their locations and available file and sequencing types. The available metadata tables along with other data sets and tables from ISB-CGC can be explored without login with the [ISB-CGC BigQuery Table Searcher](https://isb-cgc.appspot.com/bq_meta_search/).
+
+This notebook has been designed to keep itself up to date when new metadata tables releases as new data sets are added to GDC or updated every few months though we will be using the tables from release 14 in the examples.
+
+But first things first is to load libraries and create a client variable.
+
+```{r Load Libraries}
+library(bigrquery)
+library(dplyr)
+library(stringr)
+```
+
+```{r Set Up Variables}
+billing <- 'isb-cgc-02-0001' # Insert your project ID in the ''
+```
+
+Let us first explore the available metadata tables in BigQuery that are hosted by ISB-CGC. The data set in BigQuery is `isb-cgc.GDC_metadata` and tables are listed with the release of data that they are from. For example: `isb-cgc.GDC_metadata.rel14_fileData_current` is from release 14 of data in GDC. An explanation of what data is associated with each release can be found on the [GDC Data Release](https://docs.gdc.cancer.gov/Data/Release_Notes/Data_Release_Notes/) and [ISB-CGC Data Releases and Future Plans](https://isb-cancer-genomics-cloud.readthedocs.io/en/latest/sections/updates_and_releases/Data_Releases.html) pages. The manifests that are list with each release is what is used to create the metadata within BigQuery that is hosted by ISB-CGC, so that you do not need to download and tidy the release manifests thus saving you time!
+
+Now let us view which releases are available currently in BigQuery:
+
+```{r}
+tables <- list_tables("isb-cgc", "GDC_metadata")
+tables
+```
+
+Let us get the most recent data release available in the `isb-cgc.GDC_metadata` data set.
+
+```{r}
+releases <- c()
+for (t in 1:length(tables)) {
+  release <- str_match(tables[t], "(rel\\d*)_")[2]
+  if (!is.na(release) && !(release %in% releases)) {
+      releases <- c(releases, release)
+  }
+}
+releases <- sort(releases)
+releases
+
+curr_release <- releases[length(releases)]
+curr_release
+```
+
+The next code block can be removed to use other release sets but the examples in the rest of the notebook may need to updated for the approapriate release and column names.
+
+```{r}
+# If this code block is removed, please check if the column names through the notebook are still correct
+curr_release <- "rel14"
+```
+
+Each release is split up into several tables based on the data that they help to faciltiate finding.
+
+|Table|Description|
+|-----------|----------|
+|rel#_caseData|List of all of the cases in GDC|
+|rel#_fileData_current or rel#_fileData_active|List of the currently active cases in GDC along with information related to those cases|
+|rel#_fileData_legacy|Same as the previous table but with legacy data instead|
+|rel#_aliquot2caseIDmap|“helper” table to help map between identifiers at different levels of aliquot data. The intrinsic hierarchy is program > project > case > sample > portion > analyte > aliquot|
+|rel#_slide2caseIDmap|“helper” table to help map between identifiers at different levels of tissue slide data. The intrinsic hierarchy is program > project > case > sample > portion > slide|
+|rel#_GDCfileID_to_GCSurl|Gives the Google Cloud Storage location for each file|
+
+Let us see which data sets are available within the GDC.
+
+```{r}
+datasets_query <- str_c("SELECT program_name, COUNT(program_name) AS Num
+                        FROM `isb-cgc.GDC_metadata.", curr_release, "_fileData_current`
+                        GROUP BY program_name
+                        ORDER BY Num DESC", sep = "")
+# Query table
+# To see the R console output with query processing information, turn queit to FALSE
+datasets_result <- bq_project_query(billing, datasets_query, quiet = TRUE) 
+# Transform the query result into a tibble
+datasets_result <- bq_table_download(datasets_result, quiet = TRUE)
+datasets_result
+```
+
+We are going to explore the Foundation Medicine Adult Cancer Clinical Data set (FM-AD), one of the newer data sets to the GDC. More information can be found on the ['FM-AD Data Set' page](https://isb-cancer-genomics-cloud.readthedocs.io/en/latest/sections/data/FM-AD_about.html) in the ISB-CGC documentation.
+
+Let us first take a look at the schema for the `isb-cgc.GDC_metadata.rel14_fileData_current` table as it has the most interesting data for figuring out which files are available in the GDC.
+
+```{r Get Table Schema}
+# Create the SQL query
+fields_query <- str_c("SELECT column_name
+                        FROM `isb-cgc.GDC_metadata.INFORMATION_SCHEMA.COLUMNS`
+                        WHERE table_name = '", curr_release, "_fileData_current'", sep = "")
+# Query table
+# To see the R console output with query processing information, turn queit to FALSE
+fields_result <- bq_project_query(billing, fields_query, quiet = TRUE) 
+# Transform the query result into a tibble
+fields_result <- bq_table_download(fields_result, quiet = TRUE)
+fields_result
+```
+
+Then we will find out which files formats are available on GDC with a SQL query. Since, we might want to look at different fields and their counts, we will write a function that will take the field, table, release, and program name that will then tell us the count of the field in a dataframe.
+
+```{r}
+variable_count <- function(field, table_type, release, program) {
+  # Create a variable for the whole table path
+  table_path <- str_c("isb-cgc.GDC_metadata.", release, table_type, sep = "")
+  # Create a  variable with the SQL query
+  count_query = str_c("SELECT ", field, ", COUNT(", field, ") AS Num 
+                      FROM `", table_path, "` 
+                      WHERE program_name = '", program, "' 
+                      GROUP BY ", field, sep = "")
+  result <- bq_project_query(billing, count_query, quiet = TRUE) 
+  result <- bq_table_download(result, quiet = TRUE)
+}
+```
+
+Let us now test the function to view the available data formats for the FM-AD data set.
+
+```{r}
+# Set the field that we are interested in
+field <- "data_format"
+
+# Set the program that we are interested in
+program <- "FM"
+
+# Set which table we are going to query
+table_type <- "_fileData_current"
+
+# run the function with the defined variables
+query_result <- variable_count(field, table_type, curr_release, program)
+
+# display the query results
+query_result
+```
+
+It seems that most of the files for FM-AD are VCF files. Next we are going to see how many of the files available are controlled access vs open access.
+
+```{r}
+# Change the field to access type
+field <- "access"
+
+# run the function with the defined variables
+query_result <- variable_count(field, table_type, curr_release, program)
+
+# display the query results
+query_result
+```
+
+Wow, the majority of the files are controlled access files. You'll want to review that you have the correct permissions such as dbGaP authorization to access controlled data with GDC before proceeding with attempting to use the data. More information can be found in the ISB-CGC documentation on the ['Accessing Controlled Data' page](https://isb-cancer-genomics-cloud.readthedocs.io/en/latest/sections/Gaining-Access-To-Controlled-Access-Data.html).
+
+A few other fields that we might be interested are `data_category`, `data_type`,  `experimental_strategy`, `file_size`, and `platform`. We can modify the query by modifying the variables `field`,  `dataset`, `curr_release`, and `table_type` to view different tables and field counts. Let's update the query to look at the `data_type` field:
+
+```{r}
+# Change the field to data type
+field <- "data_type"
+
+# run the function with the defined variables
+query_result <- variable_count(field, table_type, curr_release, program)
+
+# display the query results
+query_result
+```
+
+Now that we have looked over different fields in the table, let us create a set of files that we are interested in. For this example, we are going to create a query that will find the GDC file id associated with the FM-AD data set that are VCF files and have the file type of 'simple_somatic_mutation'.
+
+```{r}
+FM_gdc_file_query <- str_c("SELECT file_gdc_id
+                     FROM `isb-cgc.GDC_metadata.", curr_release, "_fileData_current`
+                     WHERE program_name = 'FM' AND data_format = 'VCF' AND file_type =  'simple_somatic_mutation'", sep = "")
+# Query table
+# To see the R console output with query processing information, turn queit to FALSE
+gdc_file_id <- bq_project_query(billing, FM_gdc_file_query, quiet = TRUE) 
+# Transform the query result into a tibble
+gdc_file_id <- bq_table_download(gdc_file_id, quiet = TRUE)
+gdc_file_id
+```
+
+```{r}
+length(gdc_file_id$file_gdc_id)
+```
+
+Now that we have a list of the GDC file ids, we can join it with the GCP urls from the `rel14_GDCfileID_to_GCSurl` table.
+
+```{r}
+url_query = str_c("WITH id AS (SELECT file_gdc_id
+                  FROM `isb-cgc.GDC_metadata.", curr_release, "_fileData_current`
+                  WHERE program_name = '", program, "'
+                  AND data_format = 'VCF' AND file_type =  'simple_somatic_mutation')
+                  SELECT t2.file_gdc_url
+                  FROM id AS t1
+                  INNER JOIN `isb-cgc.GDC_metadata.", curr_release, "_GDCfileID_to_GCSurl_NEW` AS t2
+                  ON t1.file_gdc_id = t2.file_gdc_id", sep = "")
+# Query table
+# To see the R console output with query processing information, turn queit to FALSE
+gdc_file_url <- bq_project_query(billing, url_query, quiet = TRUE) 
+# Transform the query result into a tibble
+gdc_file_url <- bq_table_download(gdc_file_url, quiet = TRUE)
+gdc_file_url
+```
+
+```{r}
+length(gdc_file_url$file_gdc_url)
+```
+
+Now that we have some basics about the metadata tables, it would be good to go over a more complicated SQL query to combine a set of cohort case_barcodes and then find the associated GDC urls by building and joining many tables. The first portion of the query below is from the [How to Create Cohorts Notebook](https://github.com/isb-cgc/Community-Notebooks/blob/master/Notebooks/How_to_create_cohorts.ipynb) in the [ISB-CGC Community Notebook Repository](https://github.com/isb-cgc/Community-Notebooks/tree/master/Notebooks).
+
+```{r}
+cohort_to_url_query = "-- SQL Query from the How to Create Cohorts Notebook
+WITH
+  select_on_annotations AS (
+  SELECT
+    case_barcode,
+    category AS categoryName,
+    classification AS classificationName
+  FROM
+    `isb-cgc.TCGA_bioclin_v0.Annotations`
+  WHERE
+    ( entity_type='Patient'
+      AND (category='History of unacceptable prior treatment related to a prior/other malignancy'
+        OR classification='Redaction' ) )
+  GROUP BY
+    case_barcode,
+    categoryName,
+    classificationName ),
+  select_on_clinical AS (
+  SELECT
+    case_barcode,
+    vital_status,
+    days_to_last_known_alive,
+    ethnicity,
+    histological_type,
+    menopause_status,
+    race
+  FROM
+    `isb-cgc.TCGA_bioclin_v0.Clinical`
+  WHERE
+    ( disease_code = 'BRCA'
+      AND age_at_diagnosis<=50
+      AND gender='FEMALE' ) ),
+-- Combine the cohort with the metadata tables to create a list of GDC urls
+    cohort AS (
+  SELECT
+    case_barcode
+  FROM (
+    SELECT
+      a.categoryName,
+      a.classificationName,
+      c.case_barcode
+    FROM
+      select_on_annotations AS a
+    FULL JOIN
+      select_on_clinical AS c
+    ON
+      a.case_barcode = c.case_barcode
+    WHERE
+      a.case_barcode IS NOT NULL
+      OR c.case_barcode IS NOT NULL
+    ORDER BY
+      a.classificationName,
+      a.categoryName,
+      c.case_barcode )
+  WHERE
+    categoryName IS NULL
+    AND classificationName IS NULL
+    AND case_barcode IS NOT NULL
+  ORDER BY
+    case_barcode),
+  gdc AS (SELECT a.case_barcode, b.case_gdc_id
+  FROM cohort AS a
+  INNER JOIN `isb-cgc.GDC_metadata.rel14_caseData` AS b
+  ON a.case_barcode = b.case_barcode),
+  curr AS (SELECT c.case_barcode, c.case_gdc_id, d.file_gdc_id
+  FROM gdc as c
+  INNER JOIN `isb-cgc.GDC_metadata.rel14_fileData_current` AS d
+  ON c.case_gdc_id = d.case_gdc_id),
+  url AS ( SELECT e.case_barcode, e.case_gdc_id, e.file_gdc_id, f.file_gdc_url
+  FROM curr AS e
+  INNER JOIN `isb-cgc.GDC_metadata.rel14_GDCfileID_to_GCSurl_NEW` AS f
+  ON e.file_gdc_id = f.file_gdc_id)
+SELECT case_barcode, file_gdc_url FROM url ORDER BY case_barcode"
+
+# Query table
+# To see the R console output with query processing information, turn queit to FALSE
+cohort_to_url <- bq_project_query(billing, cohort_to_url_query, quiet = TRUE) 
+# Transform the query result into a tibble
+cohort_to_url <- bq_table_download(cohort_to_url, quiet = TRUE)
+cohort_to_url
+```
+

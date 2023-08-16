@@ -1,0 +1,158 @@
+---
+title: "How to make a heatmap using BigQuery"
+output: rmarkdown::github_document
+---
+
+# ISB-CGC Community Notebooks
+
+Check out more notebooks at our [Community Notebooks Repository](https://github.com/isb-cgc/Community-Notebooks)!
+
+```
+Title:   How to make a heatmap using BigQuery 
+Author:  Lauren Hagen
+Created: 2020-02-21
+Purpose: Demonstrate how to make a correlation matrix and create a heatmap visualization.
+Notes:   Adapted from the How to make a heatmap using BigQuery python notebook by David L Gibbs
+Repo:    https://github.com/isb-cgc/Community-Notebooks/blob/master/Notebooks/How_to_make_a_heatmap_using_BigQuery.Rmd
+```
+
+In this notebook, we will cover how to use BigQuery to pull some data, make a correlation (or distance) matrix, and visualize that result in a heatmap.
+
+It is also possible to compute the correlations *inside* BigQuery, which is a good use of the technology, but for simplicity's sake, we will use R.
+
+The methods are used in cancer data analysis (see practically all TCGA studies) but can apply to any data. Here we will be using TCGA gene expression data from two studies, KIRC (kidney cancer) and GBM (brain cancer).
+
+In this work, we will see if the two tissue types separate into clusters.
+
+# Google Auth & Load packages
+
+Before we can begin working with BigQuery, we will need to load the BigQuery library and create a GCP variable.
+
+```{r }
+library(bigrquery)
+project <- 'your_project_number' # Insert your project ID in the ''
+if (project == 'your_project_number') {
+  print('Please update the project number with your Google Cloud Project')
+}
+```
+
+We will also need to load the heatmap packages and dplyr.
+
+```{r message=FALSE, warning=FALSE}
+library(tidyverse)
+library(stringr)
+library(pheatmap)
+library(RColorBrewer)
+```
+
+# Query for data
+
+OK, we're going to query for some data using a preselected gene set from MSigDB.
+
+[http://software.broadinstitute.org/gsea/msigdb/cards/HALLMARK_TGF_BETA_SIGNALING.html](http://software.broadinstitute.org/gsea/msigdb/cards/HALLMARK_TGF_BETA_SIGNALING.html)
+
+```{r}
+genes <- read.delim('https://www.gsea-msigdb.org/gsea/msigdb/download_geneset.jsp?geneSetName=HALLMARK_TGF_BETA_SIGNALING&fileType=txt', skip = 1)
+```
+
+So, now that we have our list of genes, we will create a SQL string to communicate to the Google mothership. 
+
+Here, the SQL is captured as a string. Using the Google BigQuery web interface is a good place to prototype SQL.
+
+```{r}
+sql = str_c("
+SELECT project_short_name, sample_barcode, HGNC_gene_symbol, normalized_count 
+FROM `isb-cgc.TCGA_hg19_data_v0.RNAseq_Gene_Expression_UNC_RSEM`
+WHERE project_short_name IN ('TCGA-KIRC', 'TCGA-GBM')
+AND HGNC_gene_symbol IN ('", str_c(genes[1:10,1], collapse = "', '"), "') 
+GROUP BY 1,2,3,4")
+```
+
+Now we use the client, send off the SQL, and convert the results to a dataframe.
+
+```{r}
+result <- bq_project_query(project, sql, quiet = TRUE)
+dat <- bq_table_download(result, quiet = TRUE)
+head(dat)
+```
+
+# Converting tidy data to a matrix, and computing a correlation matrix
+
+```{r}
+mat <- dat %>%
+  select(-project_short_name) %>%
+  group_by(sample_barcode, HGNC_gene_symbol) %>%
+  summarise(genes = max(normalized_count)) %>%
+  pivot_wider(names_from = HGNC_gene_symbol, values_from = genes)
+head(mat)
+```
+
+Let's choose a smaller set of samples, to speed things up.
+
+```{r}
+set.seed(10)
+matSample <- sample_n(data.frame(mat), 60, replace = FALSE)
+rownames(matSample) <- matSample[,1]
+matSample <- matSample[-1]
+head(matSample)
+```
+
+Now we'll compute the correlations:
+
+```{r}
+cormat <- cor(t(matSample), use = "pairwise.complete.obs")
+```
+
+and make a heatmap with the basic built-in stats package:
+
+```{r}
+# Unsorted heatmap with basic built-in stats package
+heatmap(cormat, Rowv = NA, Colv = NA)
+```
+
+We can also use `heatmap()` to create clustered heatmaps with colored side labels.
+
+```{r message=FALSE}
+# create a data frame to label each sample in the matrix
+label <- unique.data.frame(dat[,1:2])
+# Create a new data frame for the labeled data and add a column with the sample_barcodes
+cormat_lab <- as.data.frame(cormat)
+cormat_lab$sample_barcode <- as.character(rownames(cormat))
+# Join the project names to label data
+cormat_lab <- left_join(cormat_lab, label, key = "sample_barcode")
+# Create a vector with the project names as numeric
+my_group <- as.numeric(as.factor(cormat_lab$project_short_name))
+# Set the color pallet for the project names
+colSide <- brewer.pal(9, "Set1")[my_group]
+# Create the heatmap
+heatmap(cormat, ColSideColors = colSide)
+```
+
+Cool! The tissue types separated out, and it looks like KIRC (blue bar) clusters into two groups.
+
+There are several packages to give more options for creating heatmaps. We are going to explore `pheatmap` from the `pheatmap` package, but there is also `heatmap.2` from the `gplots` package and `superheat` from the `superheat` package.
+
+First, we will make a basic heat map with `pheatmap`:
+
+```{r}
+pheatmap(cormat, fontsize_col = 5, fontsize_row = 4, cluster_row = FALSE, cluster_cols = FALSE)
+```
+
+Now, lets add some clustering to the heatmap:
+
+```{r}
+# Create a dataframe with the study as factors and the sample barcodes as the row names
+annot <- data.frame(Study = factor(cormat_lab$project_short_name))
+rownames(annot) <- cormat_lab$sample_barcode
+# Define a list for the annotation labels
+ann_colors <- list(
+  Study = c("TCGA-KIRC" = "#377EB8", "TCGA-GBM" = "#E41A1C")
+)
+# Create heatmap
+pheatmap(cormat, fontsize_col = 5, fontsize_row = 4, 
+         annotation_row = annot, annotation_names_row = FALSE,
+         annotation_colors = ann_colors,
+         cutree_rows = 3, border_color = NA)
+```
+
+That's it! Please let us know if you have any questions at feedback@isb-cgc.org.

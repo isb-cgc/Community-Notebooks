@@ -1,0 +1,311 @@
+---
+title: "How to Create Cohorts"
+output: rmarkdown::github_document
+---
+
+# ISB-CGC Community Notebooks
+
+Check out more notebooks at our [Community Notebooks Repository](https://github.com/isb-cgc/Community-Notebooks)!
+
+```
+Title:   How to create cohorts
+Author:  Lauren Hagen
+Created: 2019-06-20
+Purpose: Basic overview of creating cohorts
+URL:     https://github.com/isb-cgc/Community-Notebooks/blob/master/Notebooks/How_to_create_cohorts.Rmd
+Notes:   This notebook was adapted from work by Sheila Reynolds, 'How to Create TCGA Cohorts part 1' https://github.com/isb-cgc/examples-Python/blob/master/notebooks/Creating%20TCGA%20cohorts%20--%20part%201.ipynb.
+```
+***
+
+# Creating TCGA cohorts
+
+This notebook will show you how to create a TCGA cohort using the publicly available TCGA BigQuery tables that the [ISB-CGC](http://isb-cgc.org) project has produced based on the open-access [TCGA](http://cancergenome.nih.gov/) data available at the [Data Portal](https://tcga-data.nci.nih.gov/tcga/).  You will need to have access to a Google Cloud Platform (GCP) project in order to use BigQuery.  If you don't already have one, you can sign up for a [free-trial](https://cloud.google.com/free-trial/). You can also explore the available tables and data sets before commiting to creating a GCP project though the [ISB-CGC BigQuery Table Searcher](isb-cgc.appspot.com/bq_meta_search/).
+
+We are not attempting to provide a thorough BigQuery or IPython tutorial here, as a wealth of such information already exists.  Here are some links to some resources that you might find useful: 
+
+* [BigQuery](https://cloud.google.com/bigquery/what-is-bigquery)
+* the BigQuery [web UI](https://console.cloud.google.com/bigquery) 
+    +  where you can run queries interactively
+* [Jupyter Notebooks](http://jupyter.org/)
+* [Google Cloud Datalab](https://cloud.google.com/datalab/) 
+    + interactive cloud-based platform for analyzing data built on the Jupyter Notebooks
+* [Google Colaboratory](https://colab.research.google.com/)
+    + Free Jupyter Notebook environment that runs in your browser
+
+There are also many tutorials and samples available on github (see, in particular, the [datalab](https://github.com/GoogleCloudPlatform/datalab) repo, the [Google Genomics](  https://github.com/googlegenomics) project), and our own [Community Notebooks](https://github.com/isb-cgc/Community-Notebooks).
+
+OK then, let's get started!  In order to work with BigQuery, the first thing you need to do is load the libraries required for using BigQuery in R:
+```{r Load Libraries}
+library(bigrquery)
+library(dplyr)
+library(dbplyr)
+```
+
+Then let us set up some of the variables we will be using in this notebook:
+```{r Set Up Variables}
+billing <- 'your_project_number' # Insert your project ID in the ''
+if (billing == 'your_project_number') {
+  print('Please update the project number with your Google Cloud Project')
+}
+theTable <- "isb-cgc.TCGA_bioclin_v0.Clinical" # The convention for calling a table is project.dataset.table
+```
+
+
+The next thing you need to know is how to access the specific tables you are interested in.  BigQuery tables are organized into datasets, and datasets are owned by a specific GCP project.  The tables we will be working with in this notebook are in a dataset called **`TCGA_bioclin_v0`**, owned by the **`isb-cgc`** project.  A full table identifier is of the form `<project_id>.<dataset_id>.<table_id>`.  Let's start by getting some basic information about the tables in this dataset:
+
+```{r}
+# Let us look which tables are in the TCGA_bioclin_v0 dataset
+tables<-list_tables("isb-cgc", "TCGA_bioclin_v0") # the convention is project name then dataset
+tables
+```
+
+In this tutorial, we are going to look at a few different ways that we can use the information in these tables to create cohorts.  Now, you maybe asking what we mean by "cohort" and why you might be interested in *creating* one, or maybe what it even means to "create" a cohort.  The TCGA dataset includes clinical, biospecimen, and molecular data from over 10,000 cancer patients who agreed to be a part of this landmark research project to build [The Cancer Genome Atlas](http://cancergenome.nih.gov/).  This large dataset was originally organized and studied according to [cancer type](http://cancergenome.nih.gov/cancersselected) but now that this multi-year project is nearing completion, with over 30 types of cancer and over 10,000 tumors analyzed, **you** have the opportunity to look at this dataset from whichever angle most interests you.  Maybe you are particularly interested in early-onset cancers, or gastro-intestinal cancers, or a specific type of genetic mutation.  This is where the idea of a "cohort" comes in.  The original TCGA "cohorts" were based on cancer type (aka "study"), but now you can define a cohort based on virtually any clinical or molecular feature by querying these BigQuery tables.  A cohort is simply a list of samples, using the [TCGA barcode](https://docs.gdc.cancer.gov/Encyclopedia/pages/TCGA_Barcode/) system.  Once you have created a cohort you can use it in any number of ways: you could further explore the data available for one cohort, or compare one cohort to another, for example.
+
+## Exploring the Clinical data table
+Let's start by looking at the clinical data table.  The TCGA dataset contains a few very basic clinical data elements for almost all patients, and contains additional information for some tumor types only.  For example smoking history information is generally available only for lung cancer patients, and BMI (body mass index) is only available for tumor types where that is a known significant risk factor.  Let's take a look at the clinical data table and see how many different pieces of information are available to us:
+```{r Get Table Schema}
+# Create the SQL query
+sql_query1 <- "SELECT
+                column_name
+              FROM
+                `isb-cgc.TCGA_bioclin_v0.INFORMATION_SCHEMA.COLUMNS`
+              WHERE table_name = 'Clinical'"
+# Use BigQuery to run the SQL query on the Clincal table from the TCGA_bioclin_v0 dataset
+# To see the R console output with query processing information, turn queit to FALSE
+result <- bq_project_query(billing, sql_query1, quiet = TRUE) 
+# Transform the query result into a tibble
+result <- bq_table_download(result, quiet = TRUE)
+result
+```
+
+That's a lot of fields!  We can also get at the schema through dplyr:
+
+```{r}
+# Connect to BigQuery
+con <- dbConnect(
+  bigrquery::bigquery(),
+  project = "isb-cgc",
+  dataset = "TCGA_bioclin_v0",
+  billing = billing
+)
+con
+# Create a table from the Clinical table in the TCGA_bioclin_v0 dataset
+tcga_clinical <- tbl(con, "Clinical")
+# Get the columns names
+columns <- colnames(tcga_clinical)
+# Print interesting information about the columns
+cat("The first 5 columns names are: ")
+cat(columns[1:5], sep=", ")
+cat("\nThere are", length(columns), " columns in the TCGA_bioclin_v0 table.")
+```
+
+Let's look at these fields and see which ones might be the most "interesting", by looking at how many times they are filled-in (not NULL), or how much variation exists in the values. If we wanted to look at just a single field, "tobacco_smoking_history" for example, we could use a very simple query to get a basic summary:
+
+```{r}
+tobacco_query1 <- "SELECT tobacco_smoking_history,
+                COUNT(*) AS n
+               FROM `isb-cgc.TCGA_bioclin_v0.Clinical`
+               GROUP BY tobacco_smoking_history
+               ORDER BY n DESC"
+# Run the query
+tobacco1 <- bq_project_query(billing, tobacco_query1, quiet = TRUE) 
+# Create a dataframe with the results from the query
+tobacco1 <- bq_table_download(tobacco1, quiet = TRUE)
+# Show the dataframe
+tobacco1
+```
+
+
+```{r}
+# Using pipes and dbplyr to Query:
+tobacco_query2 <- tcga_clinical %>%
+  count(tobacco_smoking_history) %>%
+  arrange(desc(n))
+# Show the SQL Query
+tobacco_query2 %>%
+  show_query()
+# Create a dataframe with the results from the query 
+tobacco2 <- tobacco_query2 %>% 
+  collect()
+# Show the resulting dataframe
+tobacco2
+```
+
+For more information on dbplyr visit [dbplyer Overview](https://dbplyr.tidyverse.org/) and [Writing SQL with dbplyr](https://dbplyr.tidyverse.org/articles/sql.html). Another useful resourse for using dplyr, dbplyr and tidyverse is "R for Data Science" by Garrett Grolemund and Hadley Wickham which can be accessed for free [here](https://www.tidyverse.org/learn/).
+
+But if we want to loop over all fields and get a sense of which fields might provide us with useful criteria for specifying a cohort, we'll want to automate that. We'll put a threshold on the minimum number of patients that we expect information for, and the maximum number of unique values (since fields such as the "ParticipantBarcode" will be unique for every patient and, although we will need that field later, it's probably not useful for defining a cohort).
+
+```{r Find the number of patients Interesting Fields}
+clinicalTable <- "isb-cgc.TCGA_bioclin_v0.Clinical" # The convention for calling a table is project.dataset.table
+# Create the SQL query
+sql <- "SELECT
+          COUNT(program_name)
+        FROM
+          `isb-cgc.TCGA_bioclin_v0.Clinical`"
+# Use BigQuery to run the SQL query on the Clincal table from the TCGA_bioclin_v0 dataset
+# and get the number of Patients in the dataset
+numPatients <- bq_project_query(billing, sql, quiet = TRUE)
+numPatients <- bq_table_download(numPatients, quiet = TRUE)
+numPatients <- as.integer(numPatients) # Convert to integer
+# Print the total number of patients
+cat("The Clinical table describes a total of", numPatients, "patients")
+
+# let's set a threshold for the minimum number of values that a field should have,
+# the maximum number of unique values, and either the highest cancer type or
+# the mean and sigma of the row.
+minNumPatients <- numPatients*0.80
+maxNumValues <- 50
+
+# Create a variable to be filled in by the for loop with the number
+# interesting features
+numInteresting <- 0
+
+# Create a list to hold the results from the loop below
+iList <- c()
+
+# Loop over the fields and find the number of values with the number of unique
+# values and the
+for (field in columns) {
+  query <- paste("SELECT",field,"FROM `isb-cgc.TCGA_bioclin_v0.Clinical`", sep = " ")
+  tb <- bq_project_query(billing, query, quiet = TRUE)
+  df <- bq_table_download(tb, quiet = TRUE)
+  type <- class(df[[1]])
+  if(type=="character") {
+    freq <- as.data.frame(table(df))
+    order_freq <- freq[order(freq[,2], decreasing = TRUE),]
+    topFrac <- order_freq$Freq[1]/sum(freq[,2])
+    if (sum(freq[,2]) >= minNumPatients) {
+      if (length(freq[,1]) <= maxNumValues && length(freq[,1]) > 1){
+        if ( topFrac < 0.90 ) {
+          numInteresting <- numInteresting + 1
+          iList <- append(iList, field)
+          cat("\n     > ", field, " has ", sum(freq[,2]), " values with ", length(freq[,1]), " unique (",
+              as.character(order_freq[1,1]), " occurs ", order_freq[1,2], " times)")
+        }
+      }
+    }
+  } else {
+    if ( length(which(is.na(df[,1]) == FALSE)) >= minNumPatients) {
+      iSd <- round(sd(df[[1]], na.rm = TRUE))
+      iMean <- round(mean(df[[1]], na.rm = TRUE))
+      if ( iSd > 0.1 ) {
+        numInteresting <- numInteresting + 1
+        iList <- append(iList, field)
+        cat("\n     > ", field, " has ", length(which(is.na(df[,1]) == FALSE)), "value(S) (mean = ", iMean, ", sigma =", iSd, ")")
+      }
+    }
+  }
+}
+cat("\n Found ", numInteresting, "potentially interesting features: \n", iList)
+```
+
+The above helps us narrow down on which fields are likely to be the most useful, but if you have a specific interest, for example in menopause or HPV status, you can still look at those in more detail very easily: 
+
+```{r}
+# Using pipes and dplyr to Query:
+menopause_stat_query <- tcga_clinical %>%
+  filter(!is.na(menopause_status)) %>%
+  count(menopause_status) %>%
+  arrange(desc(n))
+# Show the SQL Query
+menopause_stat_query %>%
+  show_query()
+# Show the results of the Query
+menopause_stat <- menopause_stat_query %>% 
+  collect()
+menopause_stat
+```
+
+We might wonder which specific tumor types have menopause information:
+
+```{r}
+# Using pipes and dplyr to Query:
+menopause_type_query <- tcga_clinical %>%
+  filter(!is.na(menopause_status)) %>%
+  count(project_short_name) %>%
+  arrange(desc(n))
+# Show the SQL Query
+menopause_type_query %>%
+  show_query()
+# Show the results of the Query
+menopause_type <- menopause_type_query %>% 
+  collect()
+menopause_type
+```
+
+```{r}
+# Using pipes and dplyr to Query:
+hpv_stat_query <- tcga_clinical %>%
+  filter(!is.na(hpv_status)) %>%
+  count(hpv_status, hpv_calls) %>%
+  filter( n > 20) %>%
+  arrange(desc(n))
+
+# Show the SQL Query
+hpv_stat_query %>%
+  show_query()
+
+# Show the results of the Query
+hpv_stat <- hpv_stat_query %>% 
+  collect()
+hpv_stat
+```
+
+## TCGA Annotations
+
+An additional factor to consider, when creating a cohort is that there may be additional information that might lead one to exclude a particular patient from a cohort.  In certain instances, patients have been redacted or excluded from analyses for reasons such as prior treatment, etc, but since different researchers may have different criteria for using or excluding certain patients or certain samples from their analyses, an overview of the annoations can be found [here](https://docs.gdc.cancer.gov/Encyclopedia/pages/Annotations_TCGA/).  These annotations have also been uploaded into a BigQuery table and can be used in conjuction with the other BigQuery tables.
+
+# Create a Cohort from Two Tables
+
+Now that we have a better idea of what types of information is available in the Clinical data table, let's create a cohort consisting of female breast-cancer patients, diagnosed at the age of 50 or younger.
+
+In this next code sections, we define several queries with dplyr pipes which will then allow us to use them in a final query. We will then save the query to a tibble to allow it to be analyzed later.
+* the first query, called **`select_on_annotations`**, finds all patients in the Annotations table which have either been 'redacted' or had 'unacceptable prior treatment';  
+* the second query, **`select_on_clinical`** selects all female breast-cancer patients who were diagnosed at age 50 or younger, while also pulling out a few additional fields that might be of interest;  and
+* the final query joins these two together and returns just those patients that meet the clinical-criteria and do **not** meet the exclusion-criteria.
+
+```{r set annotations table}
+tcga_annotations <- tbl(con, "Annotations")
+```
+
+```{r Create Select_on_annotations query}
+select_on_annotations <- tcga_annotations %>%
+  # Find all patients which have either been 'redacted' or had 'unacceptable prior treatment'
+  filter(entity_type=="Patient" && (category=="History of unacceptable prior treatment related to a prior/other malignancy" | classification=="Redaction" )) %>%
+  # Group by the case_barcode, category, classification
+  group_by(case_barcode, category, classification) %>%
+  # Summarise to have the group by clause added to the query
+  summarise()
+
+# Show the SQL Query but not run the query
+select_on_annotations %>%
+  show_query()
+```
+
+```{r Create select_on_clinical}
+select_on_clinical <- tcga_clinical %>%
+  # Find all of the female, under 50, breast cancer patients
+  filter(disease_code == "BRCA" && age_at_diagnosis<=50 && gender=="FEMALE") %>%
+  # Select interesting fields from the table
+  select(case_barcode, vital_status, days_to_last_known_alive, ethnicity, histological_type, menopause_status)
+
+# Show the SQL Query but not run the query
+select_on_clinical %>%
+  show_query()
+```
+
+```{r Create main query}
+early_onset_breast_cancer_query <- select_on_annotations %>%
+  # Full join the two tables
+  full_join(select_on_clinical, by = "case_barcode") %>%
+  # patients that meet the clinical-criteria and do **not** meet the exclusion-criteria
+  filter((is.na(category) | is.na(classification) ) && !is.na(case_barcode)) %>%
+  # Only select the case barcode column
+  select(case_barcode)
+
+# Run the query and save to a tibble
+early_onset_breast_cancer <- early_onset_breast_cancer_query %>%
+  collect()
+
+head(early_onset_breast_cancer, 5)
+```

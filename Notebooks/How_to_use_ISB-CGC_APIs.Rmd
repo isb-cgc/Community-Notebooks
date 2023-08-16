@@ -1,0 +1,245 @@
+---
+title: "How to Use ISB-CGC APIs"
+output: rmarkdown::github_document
+---
+
+# ISB-CGC Community Notebooks
+
+Check out more notebooks at our [Community Notebooks Repository](https://github.com/isb-cgc/Community-Notebooks)!
+
+```
+Title:   How to Use ISB-CGC APIs
+Author:  Lauren Hagen
+Created: 2019-09-16
+Purpose: Introduction to using ISB-CGC APIs with R
+URL:     https://github.com/isb-cgc/Community-Notebooks/blob/master/Notebooks/How_to_use_ISB-CGC_APIs.Rmd
+Notes:
+```
+
+# How to Use ISB-CGC APIs
+
+## Overview of Notebook
+This notebook is designed as a quick introduction to the ISB-CGC APIs and how to access them with R.
+
+Topic Covered:
+
+* Overviews of APIs, Swagger, JSON, endpoints
+* Use Cases for ISB-CGC APIs
+* Examples of ISB-CGC API endpoints
+
+## About ISB-CGC APIs
+ISB-CGC has created several APIs to interact with ISB-CGC and user data available on Google Cloud Platforms. They were created with Google’s OpenAPI Endpoints and can be accessed through a [SwaggerUI interface](https://api-dot-isb-cgc.appspot.com/v4/swagger/). For more information on ISB-CGC APIs, please visit [our documentation](https://isb-cancer-genomics-cloud.readthedocs.io/en/latest/sections/progapi/progAPI-v4/Programmatic-Demo.html).
+
+### Overview of APIs
+An API or application-programming interface is a software intermediary that allows two applications to talk to each other. In other words, an API is the messenger that delivers your request to the provider that you’re requesting it from and then delivers the response back to you [(Wikipedia)](https://en.wikipedia.org/wiki/Application_programming_interface). Each action that an API can take is called an "endpoint".
+
+Some useful tutorials and quick start guides on APIs are:
+
+* [GDC's Getting Started guide for APIs](https://docs.gdc.cancer.gov/API/Users_Guide/Getting_Started/)
+* [API Integration in Python](https://realpython.com/api-integration-in-python/)
+* [Python API Tutorial: Getting Started with APIs](https://www.dataquest.io/blog/python-api-tutorial/)
+* [Accessing APIs from R (and a little R programming)](https://www.r-bloggers.com/accessing-apis-from-r-and-a-little-r-programming/)
+
+### What is SwaggerUI?
+
+[SwaggerUI](https://swagger.io/tools/swagger-ui/) is a user interface that allows users to try out the APIs and view their documentation easily. A tutorial on how to use the ISB-CGC APIs on the SwaggerUI can be found [here](https://isb-cancer-genomics-cloud.readthedocs.io/en/latest/sections/progapi/progAPI-v4/Programmatic-Demo.html#apis-demo).
+
+### What is JSON?
+
+JSON  or JavaScript Object Notation is a lightweight data-interchange format that is easy for humans and machines to work with. More information can be found at [json.org](https://www.json.org/).
+
+### What is an endpoint?
+
+An endpoint is the *call* for a specific functionally of an API. For example, `programs` at the end of the API request URL `https://api-dot-isb-cgc.appspot.com/v4/programs` is an endpoint that returns (or GETs) information about the available programs.
+
+### R library `httr`
+
+In order to use the ISB-CGC APIs with R, the `httr` library needs to be installed and then imported. 
+
+```{r}
+# install.packages("httr")
+library(httr)
+```
+
+## Use cases for ISB-CGC APIs
+
+The ISB-CGC APIs can be used for a number of different tasks for interacting with the Google Cloud Platform and BigQuery. It can be used to subset data into cohorts or to access cohorts that have been created using the WebApp. It can also be used to interact with the user's GCP to retrieve available user projects along with registering projects with ISB-CGC.
+
+## Example: `about` Endpoint
+
+We are first going to explore the `about` endpoint using the 'get' request to the API. This API will give you information about the ISB-CGC API such a link to the Swagger UI interface and the documentation.
+
+```{r}
+# First submit the 'get' request to the API
+about_req <- GET("https://api-dot-isb-cgc.appspot.com/v4/about")
+```
+
+Now that we have the request response, we are going to check that we didn't receive an error code or if the request was successful. If the request was successful, then the status code will come back as 200 but if something went wrong then the status code may be something 404 or 503. If you have received any error codes, you can check out Google's [Troubleshooting response errors guide](https://cloud.google.com/endpoints/docs/openapi/troubleshoot-response-errors).
+
+```{r}
+# Check that there wasn't an error with the request
+if (about_req$status_code != "200") {
+  # Print the error code if something went wrong
+  print(about_req$status_code)
+}
+```
+
+Finally, we will print out the information that we have received from the API. This response returns as a response object. You can access different parts of the with helper methods such as `content()` to access the body of the request.
+
+```{r}
+# First we will display the full response
+about_req
+```
+
+```{r}
+# Next we display the body of the request using content()
+content(about_req)
+```
+
+```{r}
+# Finally, we will print the message and the description
+content(about_req)$message
+content(about_req)$documentation
+```
+
+That wasn't difficult at all! Next we will cover a few of the other information APIs.
+
+## Example: `/data/available` Endpoint
+
+The `/data/available` Endpoint is designed to return the data sets and programs available on the WebApp along with the projects or studies that are within those data sets and programs. This endpoint returns a more complicated response object which can be accessed as if it was a combination of lists and vectors. We will first retrieve the request and then view if there was an error code within the response.
+
+```{r}
+# First submit the 'get' request to the API
+programs_req <- GET("https://api-dot-isb-cgc.appspot.com/v4/data/available")
+# Check that there wasn't an error with the request
+if (programs_req$status_code != "200") {
+  # Print the error code if something went wrong
+  print(programs_req$status_code)
+}
+```
+
+Let's put the content portion of the response into a variable and then view the content.
+
+```{r}
+# Retrieve the content of the response
+programs <- content(programs_req)
+# View the summary of the response
+summary(programs)
+# View the summary of the first data list
+summary(programs$data[[1]])
+```
+
+Now that we can see the body of the request, we can see the data that we are really interested in with this endpoint. Next we will iterate over the body of the request to neatly return the data sets/programs along with which projects/studies are available.
+
+```{r}
+# Create a variable with just the dataset information
+datasets <- programs$programs_for_cohorts
+# Create an empty variable for the programs
+program_list <- c()
+# For each data set, find the programs associated with it and fill in the programs vector
+for (i in datasets) {
+  # Create an empty variable for the projects
+  projects <- c()
+  # For each project in the current data set, 
+  for (j in i$projects){
+    projects <- c(projects, j$name)
+  }
+  program <- list(name = projects)
+  program_list <- c(program_list, program)
+  names(program_list)[length(names(program_list))] <- i$name
+}
+```
+
+We now have an easy list of programs with lists of the projects for each program. Let us look at which projects are available in the TCGA data set.
+
+```{r}
+program_list$TCGA
+```
+
+Wow, that is a lot of projects/studies available within the TCGA data set. Descriptions of the different data sets and programs can be found in our [documentation](https://isb-cancer-genomics-cloud.readthedocs.io/en/latest/sections/Hosted-Data.html).
+
+## Example: `cohort` Endpoint
+
+This last section will cover the get `cohorts` Endpoint which requires authorization before submitting the request to the API. This endpoint retrieves information about user generated cohorts from within the WebApp or with the ISB-CGC API. 
+
+### Notes on Authorization and Credentials
+In order to use several of the ISB-CGC APIs, you need have authorization with ISB-CGC.
+
+The following steps are required to use an API that Requires Authorization:
+
+1. Create Google Cloud Project set up*
+2. Register with the ISB-CGC WebApp*
+3. Create a Credential File on your local machine by using the [isb_auth.py script](https://github.com/isb-cgc/ISB-CGC-API/blob/master/scripts/isb_auth.py) from the [ISB-CGC-API Repository](https://github.com/isb-cgc/ISB-CGC-API)
+  * This script can be run from the command line or from within python but has to occur on your local machine.
+4. Find the location of the Credential File on your local machine
+  * By default, it will save the file in the users folder of your local machine with the file name: ".isb_credentials"
+5. Load the Credential file into the cloud environment you are using (if needed)
+
+*The 'Quick Start Guide to ISB-CGC' Notebook in the [Community Notebook Repository](https://github.com/isb-cgc/Community-Notebooks/tree/master/Notebooks) and the [How to Get Started on ISB-CGC](https://isb-cancer-genomics-cloud.readthedocs.io/en/latest/sections/HowToGetStartedonISB-CGC.html) can assist you with these steps.
+
+We will need two packages, jsonlite and stringr, to help us load the credentials and then create a string to add to our request.
+
+```{r}
+# install.packages("jsonlite")
+library(jsonlite)
+# install.packages("stringr")
+library(stringr)
+```
+
+Now, we can use the file to create the header information need for the API to verify that you have Authorization.
+
+```{r}
+# Read the file into a list
+token <- read_json("~/.isb_credentials")
+# Retrieve the id token from the token list
+creds <- token$token_response$id_token
+# Create a string of characters to use in the request
+head <- str_c('Bearer ',creds)
+```
+
+**Note:** the credentials file will expire after 1 hour and a new one will need to be generated. If a new file is not generated with the isb_auth script, you can delete the original file and try running the script again.
+
+If you are having any issues, you can contact us at feedback@isb-cgc.org
+
+Finally, we can make a `get` request to the `cohorts` ISB-CGC API.
+
+```{r}
+#add_headers(Authorization="bearer <your api key>")
+cohort_req <- GET("https://api-dot-isb-cgc.appspot.com/v4/cohorts", add_headers(Authorization=head))
+# Check that there wasn't an error with the request
+if (cohort_req$status_code != "200") {
+  # Print the error code if something went wrong
+  print(cohort_req$status_code)
+}
+```
+
+```{r}
+# View the cohort response
+cohort_req
+```
+
+Then we can retrieve the contents of the response and view which cohorts have been created.
+```{r}
+# Retrieve the content of the response
+cohorts <- content(cohort_req)
+```
+
+We can then see what filters were applied by choosing the number of the cohort you wish to see.
+
+```{r}
+# Create a counter for the number of cohorts
+c <- 1
+for (k in cohorts$data) {
+  # Print the cohort number
+  print(str_c(c," ",k$name))
+  # Update 
+  c <- c+1
+}
+```
+
+```{r}
+# View the filters that have been applied to the first cohort
+cohorts$data[[1]]$filters
+```
+
+

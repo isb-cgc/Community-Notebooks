@@ -1,0 +1,234 @@
+---
+title: "How to do Nearest Centroid Classification with BigQuery"
+output: rmarkdown::github_document
+---
+
+# ISB-CGC Community Notebooks
+
+Check out more notebooks at our [Community Notebooks Repository](https://github.com/isb-cgc/Community-Notebooks)!
+
+```
+Title:   How to Perform Nearest Centroid Classification with BigQuery
+Author:  Lauren Hagen
+Created: 2019-12-17
+URL:     https://github.com/isb-cgc/Community-Notebooks/blob/master/Notebooks/How_to_perform_Nearest_Centroid_Classification_with_BigQuery.Rmd
+Purpose: Demonstrate using BigQuery to categorize patients based on gene expression using the Nearest Centroid Classification.
+Notes: 
+```
+
+#  Introduction
+
+## Overview
+
+This notebook is to demonstrate how to use BigQuery to categorize patients based on gene expression using the Nearest Centroid Classifier. We will be using the Kidney renal papillary cell carcinoma (KIRP) study from The Cancer Genome Atlas (TCGA) as an example data set and will use the RNA Sequence Gene Expression Data.
+
+## What is the Nearest Centroid Classifier?
+
+The Nearest Centroid Classifier assigns a label based on the nearest mean (centroid) of the training samples that the observation is closest to<sup>1</sup>. This classifier is an example of supervised learning and does not create a model for use later<sup>2</sup>.
+
+Before we get started, we will need to load the BigQuery module, authenticate ourselves, create a client variable, and load necessary libraries.
+
+```{r Load Libraries}
+library(bigrquery)
+library(stringr)
+library(caret)
+```
+
+```{r Set Up Variables}
+billing <- 'your_project_number' # Insert your project ID in the ''
+if (billing == 'your_project_number') {
+  print('Please update the project number with your Google Cloud Project')
+}
+```
+
+# Select Genes
+
+We will be using the top three genes with the highest mean expression as the genes we will use to categorize the clinical stage for each case.
+
+```{r}
+top_20_highest_mean_gene_exp <- "SELECT gene_name, AVG(HTSeq__FPKM_UQ) as m
+FROM `isb-cgc.TCGA_hg38_data_v0.RNAseq_Gene_Expression`
+WHERE project_short_name = 'TCGA-KIRP'
+GROUP BY gene_name
+ORDER BY m DESC
+LIMIT 20"
+```
+
+```{r}
+# To see the R console output with query processing information, turn queit to FALSE
+top_genes_result <- bq_project_query(billing, top_20_highest_mean_gene_exp, quiet = TRUE)
+# Transform the query result into a tibble
+top_genes_result <- bq_table_download(top_genes_result, quiet = TRUE)
+top_genes_result
+```
+
+# Nearest Centroids in BigQuery
+
+## What are we going to use Nearest Centroids for?
+We will be attempting to predict the clinical stage for a case based on a specific subset of genes and their expression levels.
+
+First, we will filter the TCGA clinical table for our target disease (KIRP) and not include the cases where the clinical stage is missing. We need there to be no missing clinical stage features due to the nature of k nearest algorithms.
+
+```{r}
+filtered_clin <- "
+WITH
+  clin AS (
+  SELECT
+    case_barcode,
+    clinical_stage    
+  FROM
+    `isb-cgc.TCGA_bioclin_v0.Clinical`
+  WHERE
+    disease_code = 'KIRP'
+    AND clinical_stage <> 'NULL'
+  ), "
+```
+
+Next, we will want to get the gene expressions for the genes that we are going to use to attempt to identify the clinical stage. We will filter for the 3 genes that we want, then we will label each case with whether it will be in the training or testing group. For more information on randomization in BigQuery, please see the [How to Create a Random Sample in BigQuery Notebook](https://github.com/isb-cgc/Community-Notebooks/blob/master/Notebooks/How_to_create_a_random_sample_in_bigquery.ipynb) in the [ISB-CGC Community Notebook Repository](https://github.com/isb-cgc/Community-Notebooks).
+
+```{r}
+filtered_expr <- "
+expr AS (
+  SELECT
+    case_barcode,
+    IF ( MOD(ABS(FARM_FINGERPRINT(case_barcode)),10) > 1, 'TRAIN', 'TEST') as class,
+    gene_name,
+    HTSeq__FPKM_UQ
+  FROM
+    `isb-cgc.TCGA_hg38_data_v0.RNAseq_Gene_Expression`
+  WHERE
+    project_short_name = 'TCGA-KIRP'
+    AND gene_name IN ('MT-CO3','MT-CO1','MT-CO2')
+    AND (
+    case_barcode IN (select case_barcode from clin)
+    )
+  GROUP BY case_barcode, gene_name, HTSeq__FPKM_UQ
+  ),"
+```
+
+We will then find the centroids or means for each clinical stage within the training data.
+
+```{r}
+centroids <- "
+ mean AS (
+  SELECT
+    expr.class,
+    clin.clinical_stage,
+    AVG(CASE
+        WHEN gene_name = 'MT-CO3' THEN HTSeq__FPKM_UQ
+    END
+      ) AS gene1,
+    AVG(CASE
+        WHEN gene_name = 'MT-CO1' THEN HTSeq__FPKM_UQ
+    END
+      ) AS gene2,
+    AVG(CASE
+        WHEN gene_name = 'MT-CO2' THEN HTSeq__FPKM_UQ
+    END
+      ) AS gene3
+  FROM
+    expr
+  JOIN
+    clin
+  ON
+    expr.case_barcode = clin.case_barcode
+  WHERE
+    expr.class = 'TRAIN'
+  GROUP BY
+    expr.class,
+    clin.clinical_stage),"
+```
+
+We will also need the testing data to have the genes that we are going to use in the classifier in separate columns for the test cases.
+
+```{r}
+test <- "
+test AS (
+  SELECT
+    case_barcode,
+    class,
+    MAX(CASE WHEN gene_name = 'MT-CO3' THEN HTSeq__FPKM_UQ END) AS gene1,
+    MAX(CASE WHEN gene_name = 'MT-CO1' THEN HTSeq__FPKM_UQ END) AS gene2,
+    MAX(CASE WHEN gene_name = 'MT-CO2' THEN HTSeq__FPKM_UQ END) AS gene3
+  FROM
+    expr
+  WHERE
+    class = 'TEST'
+  GROUP BY case_barcode, class),"
+```
+
+This next section of the query will find the euclidean distance for each case in the testing data set<sup>3</sup>. The euclidean distance can be found by the following equation<sup>4</sup>:
+
+<img src="https://render.githubusercontent.com/render/math?math=d(q,p) = \sqrt{(q_1-p_1)^2+(q_2-p_2)^2+...+(q_n-p_n)^2}">
+
+$$d(q,p) = \sqrt{(q_1-p_1)^2+(q_2-p_2)^2+...+(q_n-p_n)^2}$$
+
+```{r}
+dist <- "
+distance AS (SELECT
+  case_barcode,
+  gene1,
+  gene2,
+  SQRT(POWER((SELECT gene1 FROM mean WHERE clinical_stage = 'Stage I')-gene1, 2) + POWER((SELECT gene2 FROM mean WHERE clinical_stage = 'Stage I')-gene2, 2) + POWER((SELECT gene3 FROM mean WHERE clinical_stage = 'Stage I')-gene3, 2)) as stage1,
+  SQRT(POWER((SELECT gene1 FROM mean WHERE clinical_stage = 'Stage II')- gene1, 2) + POWER((SELECT gene2 FROM mean WHERE clinical_stage = 'Stage II')-gene2, 2) + POWER((SELECT gene3 FROM mean WHERE clinical_stage = 'Stage II')-gene3, 2)) as stage2,
+  SQRT(POWER((SELECT gene1 FROM mean WHERE clinical_stage = 'Stage III')-gene1, 2) + POWER((SELECT gene2 FROM mean WHERE clinical_stage = 'Stage III')-gene2, 2) + POWER((SELECT gene3 FROM mean WHERE clinical_stage = 'Stage III')-gene3, 2)) as stage3,
+  SQRT(POWER((SELECT gene1 FROM mean WHERE clinical_stage = 'Stage IV')-gene1, 2) + POWER((SELECT gene2 FROM mean WHERE clinical_stage = 'Stage IV')-gene2, 2) + POWER((SELECT gene3 FROM mean WHERE clinical_stage = 'Stage IV')-gene3, 2)) as stage4,
+FROM test),
+"
+```
+
+Finally, we will calculate which category or stage has the smallest distance from the centroid and assign that stage to the test case. We will also include the case barcode and actual clinical stage as columns in our final result to assist with calculating the accuracy of the classification.
+
+```{r}
+pred <- "
+pred AS (SELECT case_barcode,
+  (CASE WHEN stage1<stage2 AND stage1<stage3 AND stage1<stage4 THEN 'Stage I'
+  WHEN stage2<stage1 AND stage2<stage3 AND stage2<stage4 THEN 'Stage II'
+  WHEN stage3<stage1 AND stage3<stage2 AND stage3<stage4 THEN 'Stage III'
+  ELSE 'Stage IV' END) AS prediction
+FROM distance)
+
+SELECT a.case_barcode, a.prediction, b.clinical_stage
+FROM pred AS a
+JOIN clin AS b
+ON a.case_barcode = b.case_barcode
+"
+```
+
+Now that we have our full query laid out, we can combine all of the sub-queries into the full string and query the data in BigQuery.
+
+```{r}
+# Build the query with all of the subqueries
+nc_query <- str_c(filtered_clin, filtered_expr, centroids, test, dist, pred)
+# To see the R console output with query processing information, turn queit to FALSE
+nc_result <- bq_project_query(billing, nc_query, quiet = TRUE)
+# Transform the query result into a tibble
+nc <- bq_table_download(nc_result, quiet = TRUE)
+nc
+```
+
+## Find Accuracy of the Model
+
+To find the accuracy of the model, we weil use a confusion matrix and then will calculate the accuracy with the following formula<sup>3</sup>:
+
+<img src="https://render.githubusercontent.com/render/math?math=Accuracy = \frac{M_{ii}}{\sum_{j}M_{ji}}">
+
+$$Accuracy = \frac{M_{ii}}{\sum_{j}M_{ji}}$$
+
+```{r}
+# Create a confusion matrix for the clinical predictions and
+# calculate the accuracy
+confusionMatrix(as.factor(nc$prediction),as.factor(nc$clinical_stage))
+```
+
+It seems that this model has an overall accuracy of 35% and was able to get close to 41% accuracy for Stage 1 but it was not able to accurately predict any of the other classes. We can tell that this is not a good model for this data set though it could easily be updated to different genes or data sets.
+
+# References
+
+<small><sup>1</sup>Statistical classification - Wikipedia. n.d. <https://en.wikipedia.org/wiki/Statistical_classification>. </small>
+
+<small><sup>2</sup>Euclidean distance - Wikipedia. n.d. <https://en.wikipedia.org/wiki/Euclidean_distance>.</small>
+
+<small><sup>3</sup>Finding Nearest Neighbors in SQL | Sisense. n.d. <https://www.sisense.com/blog/finding-nearest-neighbors-in-sql/>.</small>
+
+<small><sup>4</sup>Machine Learning with Python: Confusion Matrix in Machine Learning with Python. n.d. <https://www.python-course.eu/confusion_matrix.php>.</small>
