@@ -192,25 +192,45 @@ ggplot(df_small, aes(X,Y)) +
  geom_point(aes(color=Keratin),size=0.3) +   
   theme_classic()
 ```
-Let's look at an even smaller region. The first cell retrieved is 
+Let's look at an even smaller region, to check see the cell neighborhood. The first cell retrieved from the query above has a specific CellID
 ```{r}
-df_small[1,]
+cell_data <- df_small[1,]
+cell_data
+```
+
+This cell is at these crosshairs
+```{r echo=F, fig.width=6, fig.height=5}
+ggplot(df_small, aes(X,Y)) +
+ geom_point(aes(color=Keratin),size=0.3) +   
+  geom_hline(yintercept = yc, color="red") +
+  geom_vline(xintercept = xc, color="red") +
+  theme_classic()
 ```
 
 
-
-
+Let's look at a 100 pixel square containing this cell centroid. 
 ```{r echo=F}
+s <- 50 ; xc <- cell_data$X ; yc <- cell_data$Y
 df_smaller <- df_small %>% filter(X > 6930 & X< 7030) %>% filter(Y > 21180 & Y< 21280)
+df_smaller <- df_small %>% filter(X > xc-s & X< xc+s) %>% filter(Y > yc-s & Y< yc+s)
 ```
 
 Counting rows, there are `r nrow(df_smaller)` cells within this region. 
 
-Keratin values in the region
-```{r echo=F, fig.width=6, fig.height=5}
+This smaller region 
+```{r echo=F, fig.width=5, fig.height=5}
 ggplot(df_smaller, aes(X,Y,label=CellID)) +
  geom_point(size=0.3) +
-  geom_text(hjust = 0, nudge_x = 0.05) + 
+  geom_text(hjust = -0.1) + 
+  xlim(xc-s,xc+s) + ylim(yc-s,yc+s) +
+  ggforce::geom_circle(aes(x0=xc, y0=yc, r=10), color='red',
+              lwd=0.5, inherit.aes=FALSE) +
+    ggforce::geom_circle(aes(x0=xc, y0=yc, r=20), color='red',
+              lwd=0.5, inherit.aes=FALSE) +
+    ggforce::geom_circle(aes(x0=xc, y0=yc, r=30), color='red',
+              lwd=0.5, inherit.aes=FALSE) +
+  ggforce::geom_circle(aes(x0=xc, y0=yc, r=40), color='red',
+              lwd=0.5, inherit.aes=FALSE) +
   theme_classic()
 ```
 
@@ -222,26 +242,21 @@ point_distances_dist_object <- as.dist(point_distances)
 nearest_neighbors <- dbscan::kNN(point_distances_dist_object,k)
 ```
 
+These are the nearest neigbhors in terms of their index 
 ```{r}
 kable(head(nearest_neighbors$id))
 ```
-
-```{r}
-nearest_neighbors$id[1,]
-nearest_neighbors$dist[1,]
-df_smaller$CellID[nearest_neighbors$id[1,]]
-```
-
 The top row shows the (row) indices of the nearest neighbors to the first cell in the data frame, and so on.
 
 
-
-
-Now let's go back to the full 
-
-
-We now identify the 10 nearest neighbors of each cell. We first calculate all pairwise distances among cells. We then find the (row) indices of the nearest neighbors of each cell.
+For the cell of interest, the IDs of the nearest neighbors and distance (in pixels)
 ```{r}
+kable(cbind(CellID=df_smaller$CellID[nearest_neighbors$id[1,]],Distance=nearest_neighbors$dist[1,]))
+```
+Now let's go back to the original square of 2500 pixels in each dimension and `r nrow(df_small)` cells. 
+
+Calculate all pairwise distances among cell and find the (row) indices of the nearest neighbors of each cell.
+```{r, cache=T}
 k <- 10
 point_distances <- rdist::pdist(df_small[,c("X","Y")])
 point_distances_dist_object <- as.dist(point_distances)
@@ -251,8 +266,12 @@ nearest_neighbors <- dbscan::kNN(point_distances_dist_object,k)
 ```{r}
 kable(head(nearest_neighbors$id))
 ```
+As before, this is in terms of index, but we can check that for the original cell of interest, the neighbor IDs and Distance are as before
+For the cell of interest, the IDs of the nearest neighbors and distance (in pixels)
+```{r}
+cbind(CellID=df_small$CellID[nearest_neighbors$id[1,]],Distance=nearest_neighbors$dist[1,])
+```
 
-The top row shows the (row) indices of the nearest neighbors to the first cell in the data frame, and so on.
 
 ### 4.4 Spatial correlations among cells
 The manuscript describes how spatial correlation functions are calculated for a pair of cell markers. Examining this correlation as a function of distance yields estimates of the spatial extent of cancer-associated cellular structures. As an example we calculate keratin-keratin correlation for 10 nearest neighbhors (in the manuscript methods this corresponds to C_AB(r), with A=Keratin,B=Keratin, and r=10)
