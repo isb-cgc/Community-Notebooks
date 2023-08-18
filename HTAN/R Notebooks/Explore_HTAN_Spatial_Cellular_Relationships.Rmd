@@ -174,7 +174,7 @@ As an example we find a neighborhood defined in terms of the 10 nearest neighbor
 We now grab the data for a spatial subregion using BigQuery (which will be a faster query than for the whole slide.)
 
 ```{r tidy=FALSE, message=FALSE}
-sql <- "SELECT X_centroid, Y_centroid, Keratin_570_cellRingMask 
+sql <- "SELECT CellID, X_centroid, Y_centroid, Keratin_570_cellRingMask 
 FROM `isb-cgc-bq.HTAN.imaging_level4_HMS_crc_mask_current`where HTAN_Biospecimen_ID='HTA13_1_101'
 AND X_centroid > 5000 AND X_centroid < 7500
 AND Y_centroid > 20000 AND Y_centroid < 22500"
@@ -192,6 +192,53 @@ ggplot(df_small, aes(X,Y)) +
  geom_point(aes(color=Keratin),size=0.3) +   
   theme_classic()
 ```
+Let's look at an even smaller region. The first cell retrieved is 
+```{r}
+df_small[1,]
+```
+
+
+
+
+```{r echo=F}
+df_smaller <- df_small %>% filter(X > 6930 & X< 7030) %>% filter(Y > 21180 & Y< 21280)
+```
+
+Counting rows, there are `r nrow(df_smaller)` cells within this region. 
+
+Keratin values in the region
+```{r echo=F, fig.width=6, fig.height=5}
+ggplot(df_smaller, aes(X,Y,label=CellID)) +
+ geom_point(size=0.3) +
+  geom_text(hjust = 0, nudge_x = 0.05) + 
+  theme_classic()
+```
+
+We now identify the 10 nearest neighbors of each cell. We first calculate all pairwise distances among cells. We then find the (row) indices of the nearest neighbors of each cell.
+```{r}
+k <- 10
+point_distances <- rdist::pdist(df_smaller[,c("X","Y")])
+point_distances_dist_object <- as.dist(point_distances)
+nearest_neighbors <- dbscan::kNN(point_distances_dist_object,k)
+```
+
+```{r}
+kable(head(nearest_neighbors$id))
+```
+
+```{r}
+nearest_neighbors$id[1,]
+nearest_neighbors$dist[1,]
+df_smaller$CellID[nearest_neighbors$id[1,]]
+```
+
+The top row shows the (row) indices of the nearest neighbors to the first cell in the data frame, and so on.
+
+
+
+
+Now let's go back to the full 
+
 
 We now identify the 10 nearest neighbors of each cell. We first calculate all pairwise distances among cells. We then find the (row) indices of the nearest neighbors of each cell.
 ```{r}
