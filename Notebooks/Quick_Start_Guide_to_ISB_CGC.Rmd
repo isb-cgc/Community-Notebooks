@@ -58,7 +58,7 @@ A BigQuery Client object with the billing Project needs to be created to interfa
 > Note: Any costs that you incur are charged under your current project, so you will want to make sure you are on the correct one if you are part of multiple projects.
 
 ```{r}
-project_id <- 'isb-cgc-notebook-dev' # Update with your Google Project Id
+project_id <- 'YOUR_PROJECT_ID_CHANGE_ME' # Update with your Google Project Id
 ```
 
 ```{r}
