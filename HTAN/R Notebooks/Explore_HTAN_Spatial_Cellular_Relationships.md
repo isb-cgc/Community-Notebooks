@@ -43,6 +43,7 @@ suppressMessages(library(bigrquery))
 suppressMessages(library(knitr))
 suppressMessages(library(rdist))
 suppressMessages(library(dbscan))
+suppressMessages(library(ggforce))
 ```
 
 # 3. Google Authentication
@@ -195,12 +196,12 @@ Spatial neighborhoods are used in the analysis of tissue imaging to yield insigh
 
 As an example we find a neighborhood defined in terms of the 10 nearest neighbors for each cell. Since the pairwise distance calculation is resource intensive we limit the illustration to square subregion of 2500 pixels each side, or 1625 micrometers per side. 
 
-We now grab the data for a spatial subregion using BigQuery (which will be a faster query than for the whole slide.)
+We now grab the data for a spatial subregion using BigQuery (which will be a faster query than for the whole slide.). The query also includes and returns `CellID`, a unique ID for every cell resulting from the cell segmentation.
 
 
 ```r
-sql <- "SELECT X_centroid, Y_centroid, Keratin_570_cellRingMask 
-FROM `isb-cgc-bq.HTAN.imaging_level4_HMS_crc_mask_current`where HTAN_Biospecimen_ID='HTA13_1_101'
+sql <- "SELECT CellID, X_centroid, Y_centroid, Keratin_570_cellRingMask 
+FROM `isb-cgc-bq.HTAN.imaging_level4_HMS_crc_mask_current` where HTAN_Biospecimen_ID='HTA13_1_101'
 AND X_centroid > 5000 AND X_centroid < 7500
 AND Y_centroid > 20000 AND Y_centroid < 22500"
 tb <- bq_project_query(billing, sql)
@@ -214,7 +215,7 @@ Counting rows, there are 26229 cells within this region.
 Keratin values in the region
 <img src="Explore_HTAN_Spatial_Cellular_Relationships_files/figure-html/unnamed-chunk-15-1.png" style="display: block; margin: auto;" />
 
-We now identify the 10 nearest neighbors of each cell. We first calculate all pairwise distances among cells. We then find the (row) indices of the nearest neighbors of each cell.
+We now identify the 10 nearest neighbors of each cell. We first calculate all pairwise distances among cells and then find the nearest neighbors of each cell using the `dbscan` package.
 
 ```r
 k <- 10
@@ -222,24 +223,74 @@ point_distances <- rdist::pdist(df_small[,c("X","Y")])
 point_distances_dist_object <- as.dist(point_distances)
 nearest_neighbors <- dbscan::kNN(point_distances_dist_object,k)
 ```
-
+The `nearest_neighbors` object contains the nearest neighbors of all 26229 cells. For a particular cell, e.g. the one with `CellID` 995338, the IDs and distance of nearest neighbors (in pixels) can be found through indexing this object.
 
 ```r
-kable(head(nearest_neighbors$id))
+cell_index <- which(df_small$CellID==995338)
+kable(cbind(CellID=df_small$CellID[nearest_neighbors$id[cell_index,]],Distance=nearest_neighbors$dist[cell_index,]))
 ```
 
 
 
-|    1|    2|    3|    4|    5|    6|    7|    8|    9|   10|
-|----:|----:|----:|----:|----:|----:|----:|----:|----:|----:|
-| 1521|   50| 1963| 1827| 1952| 1725| 1305|  433|  564|   13|
-|   75|  533| 1907| 1091|  148| 1934|  361| 1334| 1822|  975|
-| 1066| 1205| 1988|  641| 1203| 1586|  937|  326|  726| 1432|
-| 1501| 1952|  799| 1765|   13| 1955| 1360| 1610| 1535|   50|
-|  272|  517| 1036| 1282|  154| 1100|  165| 1997|  104|  409|
-|  625|  753| 1880| 1794|  310| 1081| 1082| 1727|  921|  758|
+| CellID| Distance|
+|------:|--------:|
+| 996543| 13.35931|
+| 994996| 15.90291|
+| 996642| 17.13635|
+| 997884| 29.38771|
+| 997307| 32.55811|
+| 993527| 33.81967|
+| 996440| 34.56797|
+| 994180| 35.46553|
+| 998137| 37.26107|
+| 999022| 38.24496|
 
-The top row shows the (row) indices of the nearest neighbors to the first cell in the data frame, and so on.
+This X, Y location of the cell can be seen in the data as follows
+
+```r
+cell_index <- which(df_small$CellID==995338)
+cell_data <- df_small[cell_index,]
+xc <- cell_data$X ; yc <- cell_data$Y
+kable(cell_data)
+```
+
+
+
+| CellID|        X|        Y|  Keratin|
+|------:|--------:|--------:|--------:|
+| 995338| 6961.543| 21240.39| 1172.961|
+
+This cell is at these crosshairs
+<img src="Explore_HTAN_Spatial_Cellular_Relationships_files/figure-html/unnamed-chunk-19-1.png" style="display: block; margin: auto;" />
+
+
+Let's look at a 100 pixel square containing this cell centroid. 
+
+```r
+s <- 50 ; xc <- cell_data$X ; yc <- cell_data$Y
+df_smaller <- df_small %>% filter(X > xc-s & X< xc+s) %>% filter(Y > yc-s & Y< yc+s)
+```
+
+Let's plot this smaller region, and include concentric circles in steps of 10 pixels radius. 
+
+```r
+ggplot(df_smaller, aes(X,Y,label=CellID)) +
+ geom_point(size=0.3) +
+  geom_text(hjust = -0.1) + 
+  xlim(xc-s,xc+s) + ylim(yc-s,yc+s) +
+  ggforce::geom_circle(aes(x0=xc, y0=yc, r=10), color='red',
+              lwd=0.5, inherit.aes=FALSE) +
+    ggforce::geom_circle(aes(x0=xc, y0=yc, r=20), color='red',
+              lwd=0.5, inherit.aes=FALSE) +
+    ggforce::geom_circle(aes(x0=xc, y0=yc, r=30), color='red',
+              lwd=0.5, inherit.aes=FALSE) +
+  ggforce::geom_circle(aes(x0=xc, y0=yc, r=40), color='red',
+              lwd=0.5, inherit.aes=FALSE) +
+  theme_classic()
+```
+
+<img src="Explore_HTAN_Spatial_Cellular_Relationships_files/figure-html/unnamed-chunk-21-1.png" style="display: block; margin: auto;" />
+This appears to be consistent with the nearest neighbor table above.
 
 ### 4.4 Spatial correlations among cells
 The manuscript describes how spatial correlation functions are calculated for a pair of cell markers. Examining this correlation as a function of distance yields estimates of the spatial extent of cancer-associated cellular structures. As an example we calculate keratin-keratin correlation for 10 nearest neighbhors (in the manuscript methods this corresponds to C_AB(r), with A=Keratin,B=Keratin, and r=10)
@@ -256,7 +307,7 @@ df_small <- df_small %>% add_column(Keratin_10NN_mean=collect)
 ```
 
 This plot shows the relation between the cell values and the mean value of neighbors
-<img src="Explore_HTAN_Spatial_Cellular_Relationships_files/figure-html/unnamed-chunk-19-1.png" style="display: block; margin: auto;" />
+<img src="Explore_HTAN_Spatial_Cellular_Relationships_files/figure-html/unnamed-chunk-23-1.png" style="display: block; margin: auto;" />
 
 We can now calculate the correlation.
 
@@ -294,7 +345,7 @@ ggplot(df_small,aes(CD45)) + geom_histogram(binwidth = 200) +
   theme_classic()
 ```
 
-<img src="Explore_HTAN_Spatial_Cellular_Relationships_files/figure-html/unnamed-chunk-22-1.png" style="display: block; margin: auto;" />
+<img src="Explore_HTAN_Spatial_Cellular_Relationships_files/figure-html/unnamed-chunk-26-1.png" style="display: block; margin: auto;" />
 
 
 We'll use the (overly) simple definition of marker-positive cells as exceeding the 3rd quartile of the cell value distribution for each marker.
@@ -349,7 +400,7 @@ ggplot(df_small, aes(X,Y)) +
   theme_classic()
 ```
 
-<img src="Explore_HTAN_Spatial_Cellular_Relationships_files/figure-html/unnamed-chunk-26-1.png" style="display: block; margin: auto;" />
+<img src="Explore_HTAN_Spatial_Cellular_Relationships_files/figure-html/unnamed-chunk-30-1.png" style="display: block; margin: auto;" />
 
 We can find tumor cells that have a predominance of immune cells in their neighborhood.
 
