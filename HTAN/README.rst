@@ -24,28 +24,21 @@ There is a also a folder with templates, if you would like to create and share y
 
 Contents:
 
+*HTAN Clinical, Biospecimen, and Assay File Annotation Data*
+
 **R Notebooks/Explore_HTAN_Clinical_Biospecimen_Assay_Metadata.Rmd** - illustrates how to make use of HTAN Google
 BigQuery metadata tables to tabulate and plot available HTAN clinical, biospecimen, and assay metadata in R
-
-**R Notebooks/Explore_HTAN_Spatial_Cellular_Relationships.Rmd** - illustrates how to make use of HTAN Google 
-BigQuery cell spatial tables, which contain information on cellular locations and the estimated expression of 
-key marker proteins, based on multiplexed imaging and cell segmentation.
-
-**Python Notebooks/Analyzing_HTAN_Data_in_SB_Data_Studio.ipynb** - illustrates how open-access HTAN data can be integrated 
-with controlled-access data in CDS Data Studio. Utilizes the HTAN ID provenance BigQuery table in ISB-CGC to pull in 
-relevant files
-
-**Python Notebooks/HTAN_ID_Provenance_In_BQ.ipynb** - introduces the HTAN Google
-BigQuery ID provenance table and provides example use cases for the table in Python
 
 **Python Notebooks/Explore_HTAN_Clinical_Biospecimen_Assay_Metadata.ipynb** - illustrates how to make use of HTAN Google
 BigQuery metadata tables to tabulate and plot available HTAN clinical, biospecimen, and assay metadata in Python
 
-**Python Notebooks/Analyzing_HTAN_MIBI_Imaging_Data.ipynb** - demonstrates how higher level HTAN MIBI data can be pulled 
-from Synapse and Google BigQuery for analysis or visualization.
+**Python Notebooks/HTAN_ID_Provenance_In_BQ.ipynb** - introduces the HTAN Google
+BigQuery ID provenance table and provides example use cases for the table in Python
 
 **Python Notebooks/Identifying_HTAN_Data_Files_by_Organ_in_ISB-CGC.ipynb** - demonstrates how users can identify and access 
 assay data for a particular organ or cancer type using Google BigQuery metadata tables.
+
+*Molecular and Cellular Data in HTAN*
 
 **Python Notebooks/Investigating_Single_Cell_HTAN_Data.ipynb** - illustrates how to query HTAN single-cell RNA
 sequencing data for cell content and gene expression
@@ -53,5 +46,18 @@ sequencing data for cell content and gene expression
 **Python Notebooks/Building_AnnData_with_Subset_of_Cells_from_BQ.ipynb** - illustrates how to query HTAN single-cell RNA
 sequencing data for specific cell types and construct an Scanpy Anndata object from the result
 
-**HTAN_Notebook_Templates** - these templates serve as a guide for notebook construction. 
+**Python Notebooks/Analyzing_HTAN_MIBI_Imaging_Data.ipynb** - demonstrates how higher level HTAN MIBI data can be pulled 
+from Synapse and Google BigQuery for analysis or visualization.
+
+**R Notebooks/Explore_HTAN_Spatial_Cellular_Relationships.Rmd** - illustrates how to make use of HTAN Google 
+BigQuery cell spatial tables, which contain information on cellular locations and the estimated expression of 
+key marker proteins, based on multiplexed imaging and cell segmentation.
+
+*HTAN Processing and Workflows*
+
+**Python Notebooks/Analyzing_HTAN_Data_in_SB_Data_Studio.ipynb** - illustrates how open-access HTAN data can be integrated 
+with controlled-access data in CDS Data Studio. Utilizes the HTAN ID provenance BigQuery table in ISB-CGC to pull in 
+relevant files
+
+*HTAN_Notebook_Templates* - these templates serve as a guide for notebook construction. 
 
