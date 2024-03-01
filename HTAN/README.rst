@@ -39,6 +39,9 @@ BigQuery ID provenance table and provides example use cases for the table in Pyt
 **Python Notebooks/Identifying_HTAN_Data_Files_by_Organ_in_ISB-CGC.ipynb** - demonstrates how users can identify and access 
 assay data for a particular organ or cancer type using Google BigQuery metadata tables.
 
+**Python Notebooks/Identifying_and_Compiling_Precancer_Cases_and_Samples_in_HTAN.ipynb** - illustrates how to make use of HTAN Google BigQuery clinical and biospecimen tables to identify precancer cases and specimens in HTAN.
+
+
 Molecular and Cellular Data in HTAN
 -----------------------------------
 
@@ -54,6 +57,9 @@ from Synapse and Google BigQuery for analysis or visualization.
 **R Notebooks/Explore_HTAN_Spatial_Cellular_Relationships.Rmd** - illustrates how to make use of HTAN Google 
 BigQuery cell spatial tables, which contain information on cellular locations and the estimated expression of 
 key marker proteins, based on multiplexed imaging and cell segmentation.
+
+**Python Notebooks/Analyzing_HTAN_spatial_data_with_BigQuery_geospatial_analytics.ipynb** -  offers examples demonstrating how Google BigQuery spatial analytics can assist in the analysis and exploration of spatial data accessible within HTAN BigQuery table
+
 
 HTAN Processing and Workflows
 -----------------------------
