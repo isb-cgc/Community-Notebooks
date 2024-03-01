@@ -1,7 +1,7 @@
 =====================================================
 HTAN BigQuery Notebooks
 =====================================================
-`HTAN <https://humantumoratlas.org>`_ is a National Cancer Institute (NCI)-funded Cancer Moonshot<sup>SM</sup> initiative to
+`HTAN <https://humantumoratlas.org>`_ is a National Cancer Institute (NCI)-funded Cancer Moonshot initiative to
 construct 3-dimensional atlases of the dynamic cellular, morphological, and molecular features of human cancers as they
 evolve from precancerous lesions to advanced disease
 `(Cell, April 2020) <https://www.sciencedirect.com/science/article/pii/S0092867420303469>`_.
