@@ -70,19 +70,19 @@ Let's look at demographic distributions in HTAN. We begin by constructing an SQL
 sql  <- "select * from `isb-cgc-bq.HTAN_versioned.clinical_tier1_demographics_r4`"
 tb <- bq_project_query(billing, sql)
 demographics <- bq_table_download(tb)
-demographics <- demographics %>% select(-entityId,-Component) %>% distinct()
+demographics <- demographics %>% select(-entityId,-Component, -Manifest_Id, -Manifest_Version, -Id) %>% distinct()
 demographics$HTAN_Center <- gsub("HTAN ","",demographics$HTAN_Center)
 ```
 
 The number of rows of this table is the number of participants for which demographics is reported:
-nrow(demographics)=1950. The list of IDs of all HTAN Participants with demographic annotations is
+nrow(demographics)=1947. The list of unique IDs of all HTAN Participants with demographic annotations is
 
 
 ```r
-participant_list <- demographics$HTAN_Participant_ID 
+participant_list <- unique(demographics$HTAN_Participant_ID)
 ```
 
-There are length(participant_list)=1950 participants with demographic annotations.
+There are length(participant_list)=1938 participants with demographic annotations.
 
 Participants per HTAN center
 
@@ -103,10 +103,10 @@ participant_count_by_center %>% kable()
 |DFCI        | 115|
 |Duke        | 767|
 |HMS         | 130|
-|HTAPP       | 207|
+|HTAPP       | 205|
 |MSK         |  99|
 |OHSU        |  15|
-|Stanford    |  31|
+|Stanford    |  30|
 |TNP - TMA   |  51|
 |TNP SARDANA |   2|
 |Vanderbilt  | 157|
@@ -114,10 +114,10 @@ participant_count_by_center %>% kable()
 
 
 You will see some differences between this table and the case counts on the [HTAN Data Portal]([HTAN](https://data.humantumoratlas.org/)).
-(Some contributing factors: This notebook is fixed to HTAN data Release 2.0 while the portal has additional data;
+(Some contributing factors: This notebook is fixed to HTAN data Release 4.0 while the portal has additional data;
 the portal case inclusion criterion does not correspond to this simple row count.)
 
-The number of columns in the Demographics table, ncol(demographics)=20, is the number of demographic
+The number of columns in the Demographics table, ncol(demographics)=17, is the number of demographic
 attributes. The attributes are
 
 ```r
@@ -126,15 +126,14 @@ colnames(demographics)
 
 ```
 ##  [1] "Age_Is_Obfuscated"         "Days_to_Birth"            
-##  [3] "Id"                        "Occupation_Duration_Years"
-##  [5] "Year_of_Death"             "Gender"                   
-##  [7] "Vital_Status"              "Race"                     
-##  [9] "Premature_At_Birth"        "Cause_of_Death_Source"    
-## [11] "HTAN_Participant_ID"       "Weeks_Gestation_at_Birth" 
-## [13] "Days_to_Death"             "Cause_of_Death"           
-## [15] "Year_Of_Birth"             "Country_of_Residence"     
-## [17] "Ethnicity"                 "HTAN_Center"              
-## [19] "Manifest_Id"               "Manifest_Version"
+##  [3] "Occupation_Duration_Years" "Year_of_Death"            
+##  [5] "Gender"                    "Vital_Status"             
+##  [7] "Race"                      "Premature_At_Birth"       
+##  [9] "Cause_of_Death_Source"     "HTAN_Participant_ID"      
+## [11] "Weeks_Gestation_at_Birth"  "Days_to_Death"            
+## [13] "Cause_of_Death"            "Year_Of_Birth"            
+## [15] "Country_of_Residence"      "Ethnicity"                
+## [17] "HTAN_Center"
 ```
 These are the attributes of the HTAN [Clinical Tier 1 Demographics Data Model](https://data.humantumoratlas.org/standard/clinical),
 along with a few general attributes.
@@ -158,8 +157,8 @@ demographics_race_reported %>%
 |:-------------------------|----:|-------:|
 |Other                     |    9|     0.5|
 |asian                     |   35|     2.0|
-|black or african american |  295|    16.8|
-|white                     | 1421|    80.7|
+|black or african american |  294|    16.7|
+|white                     | 1419|    80.8|
 
 Here is a barchart showing the distribution
 
@@ -176,23 +175,20 @@ Similarly, here's a barchart showing the breakdown by Gender.
 
 
 ```r
-demographics_gender_reported <- demographics %>% filter(Race != "Not Reported") 
+demographics_gender_reported <- demographics %>% filter(!Gender %in% c('Not Reported','unknown','Unknown')) %>% select(HTAN_Participant_ID,Gender,HTAN_Center) %>% distinct()
 demographics_gender_reported %>%
         group_by(Gender) %>%
         tally() %>%
-        mutate(Percent=round(100*n/nrow(demographics),1)) %>%
+        mutate(Percent=round(100*n/nrow(demographics_gender_reported),1)) %>%
         kable()
 ```
 
 
 
-|Gender       |    n| Percent|
-|:------------|----:|-------:|
-|Not Reported |    3|     0.2|
-|Unknown      |    4|     0.2|
-|female       | 1434|    73.5|
-|male         |  402|    20.6|
-|unknown      |    5|     0.3|
+|Gender |    n| Percent|
+|:------|----:|-------:|
+|female | 1471|    77.1|
+|male   |  437|    22.9|
 
 
 ```r
@@ -213,7 +209,7 @@ Let's take a look at annotated treatment in HTAN. This can be found in the Thera
 sql  <- "select * from `isb-cgc-bq.HTAN_versioned.clinical_tier1_therapy_r4`"
 tb <- bq_project_query(billing, sql)
 therapy <- bq_table_download(tb)
-therapy <- therapy %>% select(-entityId,-Component) %>% distinct()
+therapy <- therapy %>% select(-entityId,-Component, -Manifest_Id, -Manifest_Version, -Id) %>% distinct()
 therapy$HTAN_Center <- gsub("HTAN ","",therapy$HTAN_Center)
 ```
 
@@ -222,10 +218,11 @@ Now filter this table to retrieve instances of annotated therapy.
 
 ```r
 therapy_yes <- therapy %>%
-    filter((Treatment_or_Therapy == "Yes" | !is.na(.$Treatment_Type)) & Treatment_Type != "Not Reported" & Treatment_Type != "None")
+    filter((Treatment_or_Therapy == "Yes" | !is.na(.$Treatment_Type) )
+& !Treatment_Type %in% c("Not Reported","None","unknown","Not Reported,"))
 ```
 
-These are 823 in number, for 419 participants.
+These are 790 in number, for 387 participants.
 
 
 By center and treatment type:
@@ -241,8 +238,8 @@ therapy_yes %>%
 
 |HTAN_Center |Treatment_Type                         |   n|
 |:-----------|:--------------------------------------|---:|
-|Vanderbilt  |Not Reported,                          | 147|
 |MSK         |Chemotherapy                           | 117|
+|HTAPP       |NA                                     | 115|
 |HMS         |Chemotherapy                           |  68|
 |MSK         |Surgery                                |  67|
 |WUSTL       |Chemotherapy                           |  60|
@@ -277,7 +274,6 @@ therapy_yes %>%
 |HTAPP       |Radiation Therapy NOS                  |   1|
 |HTAPP       |Stereotactic Radiosurgery              |   1|
 |MSK         |Radiation Cyberknife                   |   1|
-|MSK         |unknown                                |   1|
 |TNP SARDANA |Chemotherapy                           |   1|
 
 
@@ -291,7 +287,7 @@ and all annotated values can be obtained in a single BigQuery table.
 sql <- "SELECT * FROM `isb-cgc-bq.HTAN_versioned.biospecimen_r4`"
 tb <- bq_project_query(billing, sql)
 biospecimen <- bq_table_download(tb)
-biospecimen <- biospecimen %>% select(-entityId,-Component) 
+biospecimen <- biospecimen %>% select(-entityId,-Component,-Manifest_Id, -Manifest_Version, -Id) 
 biospecimen <- mutate(biospecimen,HTAN_Participant_ID=unlist(map(HTAN_Biospecimen_ID,participant_from_other_htan_id)))
 ```
 Number of unique biospecimens : 7568, from 1722 participants.
@@ -302,7 +298,7 @@ As an example, let's take a look at the various storage methods used for HTAN bi
 ### 5.1 Storage Methods
 
 ```r
-biospecimen_storage_noted <- biospecimen %>% filter(Storage_Method != "unknown" & Storage_Method != "Unknown")
+biospecimen_storage_noted <- biospecimen %>% filter(Storage_Method != "unknown" & Storage_Method != "Unknown" & Storage_Method != "Not Applicable")
 table(biospecimen_storage_noted$Storage_Method,biospecimen_storage_noted$HTAN_Center) %>% kable()
 ```
 
@@ -316,7 +312,6 @@ table(biospecimen_storage_noted$Storage_Method,biospecimen_storage_noted$HTAN_Ce
 |Frozen at -80C            |     506|         0|        10|         0|      222|        297|        0|        43|             0|              0|                0|              51|        584|
 |Frozen in liquid nitrogen |       0|        34|         0|         0|        0|         66|        8|         0|           233|              0|                0|               0|         14|
 |Frozen in vapor phase     |       0|         0|         0|         0|        0|         41|        0|        14|             0|              0|                0|               0|          0|
-|Not Applicable            |       0|         0|         5|         0|        0|          0|        0|         0|             0|              0|                0|               0|          0|
 |Paraffin block            |       0|         0|         0|      1229|        0|        125|       37|         0|             0|              0|                0|               1|          0|
 |Refrigerated at 4 degrees |       0|         0|         0|         0|      477|          0|        0|         2|             0|           1432|               73|               0|          2|
 

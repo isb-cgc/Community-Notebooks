@@ -1,7 +1,7 @@
 ---
 title: "Explore HTAN Clinicial, Biospecimen, and Assay Metadata"
 author: "Vesteinn Þórsson, ISB"
-date: "Edited March 7, 2024"
+date: "Edited March 8, 2024"
 output:
   html_document:
     keep_md: true
@@ -73,15 +73,15 @@ Let's look at demographic distributions in HTAN. We begin by constructing an SQL
 sql  <- "select * from `isb-cgc-bq.HTAN_versioned.clinical_tier1_demographics_r4`"
 tb <- bq_project_query(billing, sql)
 demographics <- bq_table_download(tb)
-demographics <- demographics %>% select(-entityId,-Component) %>% distinct()
+demographics <- demographics %>% select(-entityId,-Component, -Manifest_Id, -Manifest_Version, -Id) %>% distinct()
 demographics$HTAN_Center <- gsub("HTAN ","",demographics$HTAN_Center)
 ```
 
 The number of rows of this table is the number of participants for which demographics is reported:
-nrow(demographics)=`r nrow(demographics)`. The list of IDs of all HTAN Participants with demographic annotations is
+nrow(demographics)=`r nrow(demographics)`. The list of unique IDs of all HTAN Participants with demographic annotations is
 
 ```{r}
-participant_list <- demographics$HTAN_Participant_ID 
+participant_list <- unique(demographics$HTAN_Participant_ID)
 ```
 
 There are length(participant_list)=`r length(participant_list)` participants with demographic annotations.
@@ -97,7 +97,7 @@ participant_count_by_center %>% kable()
 
 
 You will see some differences between this table and the case counts on the [HTAN Data Portal]([HTAN](https://data.humantumoratlas.org/)).
-(Some contributing factors: This notebook is fixed to HTAN data Release 2.0 while the portal has additional data;
+(Some contributing factors: This notebook is fixed to HTAN data Release 4.0 while the portal has additional data;
 the portal case inclusion criterion does not correspond to this simple row count.)
 
 The number of columns in the Demographics table, ncol(demographics)=`r ncol(demographics)`, is the number of demographic
@@ -131,11 +131,11 @@ demographics_race_reported %>% ggplot(aes(y=Race,fill=HTAN_Center)) +
 Similarly, here's a barchart showing the breakdown by Gender.
 
 ```{r}
-demographics_gender_reported <- demographics %>% filter(Race != "Not Reported") 
+demographics_gender_reported <- demographics %>% filter(!Gender %in% c('Not Reported','unknown','Unknown')) %>% select(HTAN_Participant_ID,Gender,HTAN_Center) %>% distinct()
 demographics_gender_reported %>%
         group_by(Gender) %>%
         tally() %>%
-        mutate(Percent=round(100*n/nrow(demographics),1)) %>%
+        mutate(Percent=round(100*n/nrow(demographics_gender_reported),1)) %>%
         kable()
 ```
 
@@ -154,7 +154,7 @@ Let's take a look at annotated treatment in HTAN. This can be found in the Thera
 sql  <- "select * from `isb-cgc-bq.HTAN_versioned.clinical_tier1_therapy_r4`"
 tb <- bq_project_query(billing, sql)
 therapy <- bq_table_download(tb)
-therapy <- therapy %>% select(-entityId,-Component) %>% distinct()
+therapy <- therapy %>% select(-entityId,-Component, -Manifest_Id, -Manifest_Version, -Id) %>% distinct()
 therapy$HTAN_Center <- gsub("HTAN ","",therapy$HTAN_Center)
 ```
 
@@ -162,7 +162,8 @@ Now filter this table to retrieve instances of annotated therapy.
 
 ```{r}
 therapy_yes <- therapy %>%
-    filter((Treatment_or_Therapy == "Yes" | !is.na(.$Treatment_Type)) & Treatment_Type != "Not Reported" & Treatment_Type != "None")
+    filter((Treatment_or_Therapy == "Yes" | !is.na(.$Treatment_Type) )
+& !Treatment_Type %in% c("Not Reported","None","unknown","Not Reported,"))
 ```
 
 These are `r nrow(therapy_yes)` in number, for `r length(unique(therapy_yes$HTAN_Participant_ID))` participants.
@@ -186,7 +187,7 @@ and all annotated values can be obtained in a single BigQuery table.
 sql <- "SELECT * FROM `isb-cgc-bq.HTAN_versioned.biospecimen_r4`"
 tb <- bq_project_query(billing, sql)
 biospecimen <- bq_table_download(tb)
-biospecimen <- biospecimen %>% select(-entityId,-Component) 
+biospecimen <- biospecimen %>% select(-entityId,-Component,-Manifest_Id, -Manifest_Version, -Id) 
 biospecimen <- mutate(biospecimen,HTAN_Participant_ID=unlist(map(HTAN_Biospecimen_ID,participant_from_other_htan_id)))
 ```
 Number of unique biospecimens : `r nrow(biospecimen)`, from `r length(unique(biospecimen$HTAN_Participant_ID))` participants.
@@ -196,7 +197,7 @@ As an example, let's take a look at the various storage methods used for HTAN bi
 
 ### 5.1 Storage Methods
 ```{r}
-biospecimen_storage_noted <- biospecimen %>% filter(Storage_Method != "unknown" & Storage_Method != "Unknown")
+biospecimen_storage_noted <- biospecimen %>% filter(Storage_Method != "unknown" & Storage_Method != "Unknown" & Storage_Method != "Not Applicable")
 table(biospecimen_storage_noted$Storage_Method,biospecimen_storage_noted$HTAN_Center) %>% kable()
 ```
 
