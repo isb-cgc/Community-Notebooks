@@ -1,7 +1,7 @@
 ---
 title: "Explore HTAN Clinicial, Biospecimen, and Assay Metadata"
-author: "Vesteinn Þórsson, ISB (Vesteinn.Thorsson@isbscience.org)"
-date: "Edited 11 July, 2022"
+author: "Vesteinn Þórsson, ISB"
+date: "Edited March 8, 2024"
 output:
   html_document:
     keep_md: true
@@ -34,13 +34,14 @@ The originating data can be found on the [HTAN Data Portal](https://data.humantu
 
 ### 1.3 Notes
 
-The tables correspond to HTAN Data Version 2.
+The queries and results in this notebook correspond to HTAN Data Release 4. To choose a different release, edit the BigQuery table names in this notebook by replacing the string `r4` with a selected numbered release, e.g. `r2`. To get results for the most current data release, replace `r4` with `current` and `HTAN_versioned` with `HTAN`.  (For example replace `isb-cgc-bq.HTAN_versioned.clinical_tier1_demographics_r4` with `isb-cgc-bq.HTAN.clinical_tier1_demographics_current`).
 
 # 2. Environment & Library Setup
 ```{r}
 suppressMessages(library(tidyverse))
 suppressMessages(library(bigrquery))
 suppressMessages(library(knitr))
+suppressMessages(library(reshape2))
 ```
 
 # 3. Google Authentication
@@ -62,26 +63,25 @@ if (billing == 'your_project_id') {
 
 # 4. Analyzing Clinical Data in HTAN
 
-In the [HTAN Data model](https://data.humantumoratlas.org/standards), [Tier 1 Clinical Data](https://data.humantumoratlas.org/standard/clinical) has seven components: Demographics, Diagnosis, Exposure, Family History, Follow Up, Molecular Test, and Therapy. All HTAN demographic data is collected into a single Demographics table (*isb-cgc-bq.HTAN.clinical_tier1_demographics_current*) in Google BigQuery containing data across all [HTAN Centers](https://humantumoratlas.org/research-network). The same is true of Diagnosis, and so on.
+In the [HTAN Data model](https://data.humantumoratlas.org/standards), [Tier 1 Clinical Data](https://data.humantumoratlas.org/standard/clinical) has seven components: Demographics, Diagnosis, Exposure, Family History, Follow Up, Molecular Test, and Therapy. All HTAN demographic data is collected into a single Demographics table (*isb-cgc-bq.HTAN_versioned.clinical_tier1_demographics_r4*) in Google BigQuery containing data across all [HTAN Centers](https://humantumoratlas.org/research-network). The same is true of Diagnosis, and so on.
 
 ### 4.1 Demographics
 
-Let's look at demographic distributions in HTAN. We begin by constructing an SQL query (as a string), then sending that
-as query to HTAN Google BigQuery to retrieve the Demographics table. We remove a few unneeded bookkeeping columns.
+Let's look at demographic distributions in HTAN. We begin by constructing an SQL query (as a string), then sending that as a query to HTAN Google BigQuery to retrieve the Demographics table. We remove a few unneeded bookkeeping columns.
 
 ```{r cache=TRUE}
-sql  <- "select * from `isb-cgc-bq.HTAN.clinical_tier1_demographics_current`"
+sql  <- "select * from `isb-cgc-bq.HTAN_versioned.clinical_tier1_demographics_r4`"
 tb <- bq_project_query(billing, sql)
 demographics <- bq_table_download(tb)
-demographics <- demographics %>% select(-entityId,-Component,-`Data_Release`) %>% distinct()
+demographics <- demographics %>% select(-entityId,-Component, -Manifest_Id, -Manifest_Version, -Id) %>% distinct()
 demographics$HTAN_Center <- gsub("HTAN ","",demographics$HTAN_Center)
 ```
 
 The number of rows of this table is the number of participants for which demographics is reported:
-nrow(demographics)=`r nrow(demographics)`. The list of IDs of all HTAN Participants with demographic annotations is
+nrow(demographics)=`r nrow(demographics)`. The list of unique IDs of all HTAN Participants with demographic annotations is
 
 ```{r}
-participant_list <- demographics$HTAN_Participant_ID 
+participant_list <- unique(demographics$HTAN_Participant_ID)
 ```
 
 There are length(participant_list)=`r length(participant_list)` participants with demographic annotations.
@@ -97,7 +97,7 @@ participant_count_by_center %>% kable()
 
 
 You will see some differences between this table and the case counts on the [HTAN Data Portal]([HTAN](https://data.humantumoratlas.org/)).
-(Some contributing factors: This notebook is fixed to HTAN data Release 2.0 while the portal has additional data;
+(Some contributing factors: This notebook is fixed to HTAN data Release 4.0 while the portal has additional data;
 the portal case inclusion criterion does not correspond to this simple row count.)
 
 The number of columns in the Demographics table, ncol(demographics)=`r ncol(demographics)`, is the number of demographic
@@ -131,11 +131,11 @@ demographics_race_reported %>% ggplot(aes(y=Race,fill=HTAN_Center)) +
 Similarly, here's a barchart showing the breakdown by Gender.
 
 ```{r}
-demographics_gender_reported <- demographics %>% filter(Race != "Not Reported") 
+demographics_gender_reported <- demographics %>% filter(!Gender %in% c('Not Reported','unknown','Unknown')) %>% select(HTAN_Participant_ID,Gender,HTAN_Center) %>% distinct()
 demographics_gender_reported %>%
         group_by(Gender) %>%
         tally() %>%
-        mutate(Percent=round(100*n/nrow(demographics),1)) %>%
+        mutate(Percent=round(100*n/nrow(demographics_gender_reported),1)) %>%
         kable()
 ```
 
@@ -151,10 +151,10 @@ demographics_gender_reported %>%
 Let's take a look at annotated treatment in HTAN. This can be found in the Therapy table.
 
 ```{r cache=TRUE}
-sql  <- "select * from `isb-cgc-bq.HTAN.clinical_tier1_therapy_current`"
+sql  <- "select * from `isb-cgc-bq.HTAN_versioned.clinical_tier1_therapy_r4`"
 tb <- bq_project_query(billing, sql)
 therapy <- bq_table_download(tb)
-therapy <- therapy %>% select(-entityId,-Component,-`Data_Release`) %>% distinct()
+therapy <- therapy %>% select(-entityId,-Component, -Manifest_Id, -Manifest_Version, -Id) %>% distinct()
 therapy$HTAN_Center <- gsub("HTAN ","",therapy$HTAN_Center)
 ```
 
@@ -162,7 +162,8 @@ Now filter this table to retrieve instances of annotated therapy.
 
 ```{r}
 therapy_yes <- therapy %>%
-    filter((Treatment_or_Therapy == "Yes" | !is.na(.$Treatment_Type)) & Treatment_Type != "Not Reported" & Treatment_Type != "None")
+    filter((Treatment_or_Therapy == "Yes" | !is.na(.$Treatment_Type) )
+& !Treatment_Type %in% c("Not Reported","None","unknown","Not Reported,"))
 ```
 
 These are `r nrow(therapy_yes)` in number, for `r length(unique(therapy_yes$HTAN_Participant_ID))` participants.
@@ -183,10 +184,10 @@ Biospecimen data in HTAN conforms to the [Biospecimen Data](https://data.humantu
 and all annotated values can be obtained in a single BigQuery table.
 
 ```{r, cache=TRUE}
-sql <- "SELECT * FROM `isb-cgc-bq.HTAN.biospecimen_current`"
+sql <- "SELECT * FROM `isb-cgc-bq.HTAN_versioned.biospecimen_r4`"
 tb <- bq_project_query(billing, sql)
 biospecimen <- bq_table_download(tb)
-biospecimen <- biospecimen %>% select(-entityId,-Component) 
+biospecimen <- biospecimen %>% select(-entityId,-Component,-Manifest_Id, -Manifest_Version, -Id) 
 biospecimen <- mutate(biospecimen,HTAN_Participant_ID=unlist(map(HTAN_Biospecimen_ID,participant_from_other_htan_id)))
 ```
 Number of unique biospecimens : `r nrow(biospecimen)`, from `r length(unique(biospecimen$HTAN_Participant_ID))` participants.
@@ -196,7 +197,7 @@ As an example, let's take a look at the various storage methods used for HTAN bi
 
 ### 5.1 Storage Methods
 ```{r}
-biospecimen_storage_noted <- biospecimen %>% filter(Storage_Method != "unknown" & Storage_Method != "Unknown")
+biospecimen_storage_noted <- biospecimen %>% filter(Storage_Method != "unknown" & Storage_Method != "Unknown" & Storage_Method != "Not Applicable")
 table(biospecimen_storage_noted$Storage_Method,biospecimen_storage_noted$HTAN_Center) %>% kable()
 ```
 
@@ -206,58 +207,35 @@ table(biospecimen_storage_noted$Storage_Method,biospecimen_storage_noted$HTAN_Ce
 HTAN data is generated from multiple assay types, probing cancers and the tumor microenvironment at molecular, cellular, and tissue level,
 using bulk, single-cell, and spatial assays. As described on the [HTAN Data Standards](https://data.humantumoratlas.org/standards)
 page, generated data are arranged into data "Levels" corresponding to bioinformatic processing steps. In BigQuery, each
-assay type and level is collected into a single table. Combining all of them (the query is a little long to display,
-but can be seen in the code), we can tally the number of files available for each.
+assay type and level is collected into a single table. 
 
-```{r, cache=TRUE, echo=F}
-sql <- "with X as ( 
-select Component, HTAN_Center from `isb-cgc-bq.HTAN.scRNAseq_level1_metadata_current`
-UNION ALL
-select Component, HTAN_Center from `isb-cgc-bq.HTAN.scRNAseq_level2_metadata_current`
-UNION ALL
-select Component, HTAN_Center from `isb-cgc-bq.HTAN.scRNAseq_level3_metadata_current`
-UNION ALL
-select Component, HTAN_Center from `isb-cgc-bq.HTAN.scRNAseq_level4_metadata_current`
-UNION ALL
-select Component, HTAN_Center from `isb-cgc-bq.HTAN.bulkRNAseq_level1_metadata_current`
-UNION ALL
-select Component, HTAN_Center from `isb-cgc-bq.HTAN.bulkRNAseq_level2_metadata_current`
-UNION ALL
-select Component, HTAN_Center from `isb-cgc-bq.HTAN.bulkRNAseq_level3_metadata_current`
-UNION ALL
-select Component, HTAN_Center from `isb-cgc-bq.HTAN.bulkWES_level1_metadata_current`
-UNION ALL
-select Component, HTAN_Center from `isb-cgc-bq.HTAN.bulkWES_level2_metadata_current`
-UNION ALL
-select Component, HTAN_Center from `isb-cgc-bq.HTAN.scATACseq_level1_metadata_current`
-UNION ALL
-select Component, HTAN_Center from `isb-cgc-bq.HTAN.scATACseq_level3_metadata_current`
-UNION ALL
-select Component, HTAN_Center from `isb-cgc-bq.HTAN.scATACseq_level4_metadata_current`
-UNION ALL
-select Component, HTAN_Center from `isb-cgc-bq.HTAN.metabolomics_metadata_current`
-UNION ALL
-select Component, HTAN_Center from `isb-cgc-bq.HTAN.proteomics_metadata_current`
-UNION ALL
-select Component, HTAN_Center from `isb-cgc-bq.HTAN.lipidomics_metadata_current`
-UNION ALL
-select Component, HTAN_Center from `isb-cgc-bq.HTAN.clinical_tier1_moleculartest_current`
-UNION ALL
-select Component, HTAN_Center from `isb-cgc-bq.HTAN.imaging_level2_metadata_current`
-)
-select Component, HTAN_Center, count(*) as Count from X
-group by Component, HTAN_Center
-order by Component, HTAN_Center"
+For example, we can take a look at Single Cell RNA-seq Level 4 metadata by querying the table `isb-cgc-bq.HTAN_versioned.scRNAseq_level4_metadata_r4`
+
+```{r, cache=TRUE, echo=T}
+sql <- "SELECT * FROM `isb-cgc-bq.HTAN_versioned.scRNAseq_level4_metadata_r4`"
 tb <- bq_project_query(billing, sql)
-apc <- bq_table_download(tb)
-apc$HTAN_Center <- gsub("HTAN ","",apc$HTAN_Center)
-apc_tb <- apc %>% pivot_wider(names_from=HTAN_Center, values_from = Count, values_fill=0)
+scl4 <- bq_table_download(tb)
+scl4 %>% head(10) %>% kable() 
 ```
-There are a total of `r sum(apc$Count)` annotated assay files. This is the breakdown by center and Component, which corresponds to assay type and Level. 
 
-```{r, echo=T}
-apc_tb %>% kable()
+The [HTAN ID Provenance](https://isb-cgc.appspot.com/bq_meta_search/isb-cgc-bq.HTAN.id_provenance_current/) table pulls a selection of attributes from each individual assay metadata table, combining all of them into a single queryable table. For an in-depth introduction to this table, please see our notebook: [HTAN_ID_Provenance_In_BQ.ipynb](https://github.com/isb-cgc/Community-Notebooks/blob/master/HTAN/Python%20Notebooks/HTAN_ID_Provenance_In_BQ.ipynb).
+
+Using the provenance table, we can tally the number of files available for each assay and level.
+
+```{r, cache=TRUE, echo=T}
+sql <- "SELECT Component, HTAN_Center, Count(*) AS Count
+  FROM `isb-cgc-bq.HTAN_versioned.id_provenance_r4`
+  WHERE Component LIKE '%Level%'
+  GROUP BY Component, HTAN_Center
+  ORDER BY Component, HTAN_Center"
+tb <- bq_project_query(billing, sql)
+all_files <- bq_table_download(tb)
 ```
+```{r}
+all_files_pivot <- dcast(all_files, Component ~ HTAN_Center, value.var = "Count", fun.aggregate = sum, fill = 0)
+all_files_pivot %>% kable()
+```
+
 
 # 7. Relevant Citations and Links 
 
