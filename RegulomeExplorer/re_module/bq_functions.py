@@ -770,7 +770,7 @@ def makeWidgetsPair(list1, list2) :
     disabled = False
   )
 
-  gene_name2 = widgest.Dropdown(
+  gene_name2 = widgets.Dropdown(
     options = list2,
     value = list2[0],
     description = '',
