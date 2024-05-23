@@ -722,18 +722,18 @@ def makeWidgets( project ):
         
         
         
+  study_title = widgets.HTML('<em>Select a study </em>')
+  display(widgets.HBox([study_title, study]))
+
+  genes_title = widgets.HTML('<em>Symbol list </em>')
+  display(widgets.HBox([ genes_title, gene_names  ]))
+
   feature1_title = widgets.HTML('<em>Select Feature1 </em>')  
   display(widgets.HBox([ feature1_title, feature1 ]))
-
-  genes_title = widgets.HTML('<em>Feature1 labels </em>')
-  display(widgets.HBox([ genes_title, gene_names  ]))
 
   feature2_title = widgets.HTML('<em>Select Feature2 </em>')  
   display(widgets.HBox([ feature2_title, feature2 ]))
 
-  study_title = widgets.HTML('<em>Select a study </em>')
-  display(widgets.HBox([study_title, study]))
-    
   significance_title = widgets.HTML('<em>Significance level </em>')
   display(widgets.HBox([ significance_title, significance]))
     
@@ -747,25 +747,40 @@ def makeWidgets( project ):
   return([study, feature1, feature2, gene_names, size,  significance])
 
 
-def makeWidgetsPair() : 
-  gene_name1 = widgets.Text(
-      value='',
-      placeholder='label name',
-      description='',
-      disabled=False
-      )
+def makeWidgetsPair(list1, list2) : 
+  # updated this section to use drop down widget - JAW
+  # gene_name1 = widgets.Text(
+  #     value='',
+  #     placeholder='label name',
+  #     description='',
+  #     disabled=False
+  #     )
 
-  gene_name2 = widgets.Text(
-      value='',
-      placeholder='label name',
-      description='',
-      disabled=False
-      )  
+  # gene_name2 = widgets.Text(
+  #     value='',
+  #     placeholder='label name',
+  #     description='',
+  #     disabled=False
+  #     )  
   
-  gene1_title = widgets.HTML('<em>Type label 1 </em>')
+  gene_name1 = widgets.Dropdown(
+    options = list1,
+    value = list1[0],
+    description = '',
+    disabled = False
+  )
+
+  gene_name2 = widgest.Dropdown(
+    options = list2,
+    value = list2[0],
+    description = '',
+    disabled = False
+  )
+
+  gene1_title = widgets.HTML('<em>Select symbol 1 </em>')
   display(widgets.HBox([ gene1_title, gene_name1  ]))
 
-  gene2_title = widgets.HTML('<em>Type label 2 </em>')
+  gene2_title = widgets.HTML('<em>Select symbol 2 </em>')
   display(widgets.HBox([ gene2_title, gene_name2  ]))
 
   
