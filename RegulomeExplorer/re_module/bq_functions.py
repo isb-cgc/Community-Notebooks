@@ -7,6 +7,69 @@ from scipy.stats import mstats
 import ipywidgets as widgets
 from   ipywidgets import Layout
 
+def bqtable_data_cptac( MolecularFeature , study ) :
+    
+    study2site = { 'CCRCC' : 'Kidney',
+                     'GBM' : 'Brain',
+                   'HNSCC' : 'Other and ill-defined sites',
+                    'LSCC' : 'Bronchus and lung',
+                    'LUAD' : 'Bronchus and lung',
+                     'PDA' : 'Pancreas',
+                    'UCEC' : 'Uterus, NOS',
+               'breast_BI' : 'Breast'}
+
+    cptac_tables = { 'Gene Expression' : { 'CCRCC' : 'isb-cgc-bq.CPTAC.RNAseq_hg38_gdc_current',
+                                           'GBM' : 'isb-cgc-bq.CPTAC.RNAseq_hg38_gdc_current',
+                                           'HNSCC' : 'isb-cgc-bq.CPTAC.RNAseq_hg38_gdc_current',
+                                           'LSCC' : 'isb-cgc-bq.CPTAC.RNAseq_hg38_gdc_current',
+                                           'LUAD' : 'isb-cgc-bq.CPTAC.RNAseq_hg38_gdc_current',
+                                           'PDA' : 'isb-cgc-bq.CPTAC.RNAseq_hg38_gdc_current',
+                                           'UCEC' : 'isb-cgc-bq.CPTAC.RNAseq_hg38_gdc_current',
+                                           'breast_BI' : 'isb-cgc-bq.CPTAC.RNAseq_hg38_gdc_current'},
+                     'Protein Expression' : { 'CCRCC' : 'isb-cgc-bq.CPTAC.quant_proteome_CPTAC_CCRCC_discovery_study_pdc_current',
+                                              'GBM' : 'isb-cgc-bq.CPTAC.quant_proteome_CPTAC_GBM_discovery_study_pdc_current',
+                                              'HNSCC' : 'isb-cgc-bq.CPTAC.quant_proteome_CPTAC_HNSCC_discovery_study_pdc_current',
+                                              'LSCC' : 'isb-cgc-bq.CPTAC.quant_proteome_CPTAC_LSCC_discovery_study_pdc_current',
+                                              'LUAD' : 'isb-cgc-bq.CPTAC.quant_proteome_CPTAC_LUAD_discovery_study_pdc_current',
+                                              'PDA' : 'isb-cgc-bq.CPTAC.quant_proteome_CPTAC_PDA_discovery_study_pdc_current',
+                                              'UCEC' : 'isb-cgc-bq.CPTAC.quant_proteome_CPTAC_UCEC_discovery_study_pdc_current',
+                                              'breast_BI' : 'isb-cgc-bq.CPTAC.quant_proteome_prospective_breast_BI_pdc_current'}
+                   }
+    
+    mytable = cptac_tables[MolecularFeature][study]
+    
+    Features = { 'Gene Expression' : { 'table'  : 'isb-cgc-bq.CPTAC.RNAseq_hg38_gdc_current',
+                                       'symbol' : 'gene_name',
+                                       'study'  : '',
+                                       'data'   : 'AVG( LOG10(fpkm_unstranded + 1) ) ',
+                                       'rnkdata': '(RANK() OVER (PARTITION BY symbol ORDER BY data ASC)) + (COUNT(*) OVER ( PARTITION BY symbol, CAST(data as STRING)) - 1)/2.0',
+                                 'metasampleid' : 'sample_submitter_id',  
+                                   'patientcode': 'case_submitter_id',
+                                    'samplecode': 'sample_barcode',
+                                       'where'  : 'AND fpkm_unstranded IS NOT NULL AND t2.sample_type = \'Primary Tumor\'',
+                                       'dattype': 'numeric' },
+                'Protein Expression' : {'table' : 'NULL',
+                                        'symbol' : 'gene_symbol',
+                                        'study'  : '',
+                                        'data'   : 'AVG( protein_abundance_log2ratio ) ',
+                                        'rnkdata': '(RANK() OVER (PARTITION BY symbol ORDER BY data ASC)) + (COUNT(*) OVER ( PARTITION BY symbol, CAST(data as STRING)) - 1)/2.0',
+                                  'metasampleid' : 'aliquot_id',  
+                                   'patientcode': 'case_submitter_id',
+                                    'samplecode': 'aliquot_id',
+                                       'where'  : 'AND protein_abundance_log2ratio IS NOT NULL AND t2.sample_type = \'Primary Tumor\' ',
+                                       'dattype': 'numeric' },
+                                        
+               }
+      
+    feature = Features[MolecularFeature]
+    feature['table'] = mytable 
+    
+    if ( MolecularFeature == 'Gene Expression' ) :
+        feature['where'] = feature['where'] + ' AND t1.primary_site=\''+ study2site[study]  +'\''  
+        
+    return feature
+    
+    
 def bqtable_data( MolecularFeature  ) :
 
     Features = { 'Gene Expression' : { 'table'  : 'pancancer-atlas.Filtered.EBpp_AdjustPANCAN_IlluminaHiSeq_RNASeqV2_genExp_filtered',
@@ -85,72 +148,36 @@ def bqtable_data( MolecularFeature  ) :
     feature = Features[MolecularFeature]
     return feature      
 
-def approx_significant_level( ) :
-    f_alpha="""CREATE TEMP FUNCTION erfcc(x  FLOAT64)
-RETURNS FLOAT64
-LANGUAGE js AS \"\"\"
-  
-  var t; 
-  var z; 
-  var ans;
-  z = Math.abs(x) ;
-  t = 1.0 / (1.0 + 0.5*z ) ;
-  
-  ans= t * Math.exp(-z*z-1.26551223+t*(1.00002368+t*(0.37409196+t*(0.09678418+
-t*(-0.18628806+t*(0.27886807+t*(-1.13520398+t*(1.48851587+
-t*(-0.82215223+t*0.17087277)))))))));
-  
-  if ( x >= 0 ) {
-    return ans ;
-  } else {
-    return 2.0 - ans;
-  }
-\"\"\";
+    
 
+    
+def numeric_bqtable_cptac ( tablename, feat, labels ) :
+    
+    mytable = "\n" + tablename + \
+""" AS (
+SELECT
+   symbol,
+   {0} AS rnkdata,
+   ParticipantBarcode
+FROM (
+   SELECT
+      t1.{1} AS symbol, 
+      {2} AS data,
+      t2.{3} AS ParticipantBarcode
+   FROM `{4}` t1
+   JOIN `isb-cgc-bq.PDC_metadata.aliquot_to_case_mapping_current` as t2
+   ON  t1.{6} = t2.{7}   # cohort 
+         AND {1} {8}  # labels 
+         {5}  
+   GROUP BY
+      ParticipantBarcode, symbol
+   )
+)
 """
-    return f_alpha
+    table_query= mytable.format(feat['rnkdata'],feat['symbol'],feat['data'],feat['patientcode'],feat['table'],feat['where'],\
+                                feat['samplecode'], feat['metasampleid'], labels )
 
-def query_js_tscore_pvalue() :
-    f_pvalue="""CREATE TEMPORARY FUNCTION tscore_to_p(a FLOAT64, b FLOAT64, c FLOAT64)
- RETURNS FLOAT64
- LANGUAGE js AS
-\"\"\"
-  return jStat.ttest(a,b,c); //jStat.ttest( tscore, n, sides)
-\"\"\"
-OPTIONS (
- library="gs://ba-cgc-bigquery/jstat/dist/jstat.min.js"
-);
-
-"""
-    return f_pvalue
-
-def  pvalues_dataframe( df ):
-    # computing p values from the two tailed t test
-    if not df.empty:
-        f = lambda n, correlation  : (1.0 - stats.t.cdf( abs(correlation) * np.sqrt( (n- 2.0) / (1.0 - correlation**2 )), n-2)) * 2.0  
-        df['p-value'] = df.apply(lambda x: f(x.n,x.correlation), axis=1)
-    
-#    return df 
-
-
-
-def readcohort( cohortlist ) :
-    
-    SampleList = []
-    PatientList = []
-    
-    for fname in cohortlist.value : 
-        data  =  cohortlist.value[fname]['content'].decode()
-        lines = data.split('\n' )
-        
-        for line in lines :
-            
-            columns = line.strip().split(',')
-            if ( len( columns )  == 2 ) : 
-                SampleList.append(  columns[0] ) 
-                PatientList.append(  columns[1] )
-
-    return SampleList , PatientList
+    return  table_query
 
 
 def generic_numeric_bqtable ( tablename, feat , cohort, labels ) :
@@ -209,40 +236,55 @@ WHERE
     return table_query
     
 
-def get_feature_tables( study, feature1, feature2, samplelist, patientlist, labellist ) :
-    
-    feat1 =  bqtable_data( feature1 )
-    feat2 =  bqtable_data( feature2 )
-    
-    # code to handle a user defined cohort list
-    cohort1 = feat1['study'] + " = \'" + study + "\'"
-    cohort2 = feat2['study'] + " = \'" + study + "\'"
-    if ( len( samplelist ) > 0  ) :
-        cohort1 = feat1['samplecode'] + " IN UNNEST(@SAMPLELIST) "            
-        cohort2 = feat2['samplecode'] + " IN UNNEST(@SAMPLELIST) "
+def get_feature_tables( project, study, feature1, feature2, samplelist, patientlist, labellist ) :
 
-    # Clinical features
-    struct_columns = []
-    if ( feature1.startswith('Clinical') or feature2.startswith('Clinical') ) :
-         struct_columns = clinical_features( 'Clinical Categorical' ) 
+    if ( project == 'TCGA' ) :
+        feat1 =  bqtable_data( feature1 )
+        feat2 =  bqtable_data( feature2 )
+    
+        # code to handle a user defined cohort list
+        cohort1 = feat1['study'] + " = \'" + study + "\'"
+        cohort2 = feat2['study'] + " = \'" + study + "\'"
+    
+        # Clinical features
+        struct_columns = []
+        if ( feature1.startswith('Clinical') or feature2.startswith('Clinical') ) :
+             struct_columns = clinical_features( 'Clinical Categorical' ) 
         
-    # generate table 1:
-    table1 = ''
-    if ( feature1.startswith('Clinical') ) :
-        temp_structs =   find_clinical_features( struct_columns, labellist )
-        table1 = generic_clinical_bqtable ( 'table1' , feat1, cohort1, temp_structs )
+        # generate table 1:
+        table1 = ''
+        if ( feature1.startswith('Clinical') ) :
+            temp_structs =   find_clinical_features( struct_columns, labellist )
+            table1 = generic_clinical_bqtable ( 'table1' , feat1, cohort1, temp_structs )
         
-    elif ( feat1['dattype'] == 'numeric' ) :
-        table1 = generic_numeric_bqtable ( 'table1', feat1, cohort1,  'IN UNNEST(@GENELIST)' )  
+        elif ( feat1['dattype'] == 'numeric' ) :
+            table1 = generic_numeric_bqtable ( 'table1', feat1, cohort1,  'IN UNNEST(@GENELIST)' )  
     
 
-    # generate table 2:            
-    table2 = ''
-    if ( feature2.startswith('Clinical') ) :
-        table2 = generic_clinical_bqtable ( 'table2', feat2, cohort2, struct_columns )
+        # generate table 2:            
+        table2 = ''
+        if ( feature2.startswith('Clinical') ) :
+            table2 = generic_clinical_bqtable ( 'table2', feat2, cohort2, struct_columns )
         
-    elif ( (feat2['dattype'] == 'numeric') or (feat2['dattype'] == 'boolean') ) :
-        table2 = generic_numeric_bqtable ( 'table2', feat2, cohort2, 'IS NOT NULL' )    
+        elif ( (feat2['dattype'] == 'numeric') or (feat2['dattype'] == 'boolean') ) :
+            table2 = generic_numeric_bqtable ( 'table2', feat2, cohort2, 'IS NOT NULL' )    
+
+    elif (project == 'CPTAC' ) :
+        feat1 = bqtable_data_cptac( feature1, study )
+        feat2 = bqtable_data_cptac( feature2, study )
+        
+        # generate table 1:
+        table1 = ''
+        if ( feat1['dattype'] == 'numeric' ) :
+            table1 = numeric_bqtable_cptac( 'table1', feat1,  'IN UNNEST(@GENELIST)' )  
+    
+
+        # generate table 2:            
+        table2 = ''
+        if ( feat2['dattype'] == 'numeric'  ) :
+            table2 = numeric_bqtable_cptac ( 'table2', feat2,  'IS NOT NULL' )    
+
+        
         
     return table1, table2
 
@@ -360,12 +402,19 @@ def find_clinical_features( struct_columns, labellist ) :
        
     return struct_list    
 
-def get_summarized_pancanatlas( feature1_name, feature2_name ) :
-    ft1 = bqtable_data(feature1_name )
-    ft2 = bqtable_data(feature2_name )
-    return get_summarized_table( feature1_name, ft1, feature2_name, ft2 ) 
+def get_summarized_table(project, feature1_name, feature2_name, study ) :
+    if ( project == 'TCGA') :
+    
+        ft1 = bqtable_data(feature1_name )
+        ft2 = bqtable_data(feature2_name )
+    
+    elif ( project == 'CPTAC' ):
+        ft1 = bqtable_data_cptac( feature1_name, study )
+        ft2 = bqtable_data_cptac( feature2_name, study )
+        
+    return get_summarized_query( feature1_name, ft1, feature2_name, ft2 ) 
                
-def get_summarized_table( feature1_name, ft1, feature2_name, ft2 ) :
+def get_summarized_query( feature1_name, ft1, feature2_name, ft2 ) :
     
     
     if ( ft2['dattype']  == 'numeric' ): 
@@ -427,32 +476,31 @@ GROUP BY
    
     return sql_str
 
-def get_stat_pancanatlas( feat_name1, feat_name2, nsamples, alpha ) :
+def get_stat_table( project, study, feat_name1, feat_name2, nsamples, alpha ) :
     
-    feat1 = bqtable_data(feat_name1 )
-    feat2 = bqtable_data(feat_name2 )
-    return get_stat_table( feat_name1, feat1, feat_name2, feat2, nsamples, alpha )
+    if ( project == 'TCGA') :
+        feat1 = bqtable_data(feat_name1 )
+        feat2 = bqtable_data(feat_name2 )
+    elif( project == 'CPTAC') :
+        feat1 = bqtable_data_cptac( feat_name1, study )
+        feat2 = bqtable_data_cptac( feat_name2, study )
 
-def get_stat_table( feat_name1, feat1, feat_name2, feat2, nsamples, alpha ) :
+    return get_stat_query( feat_name1, feat1, feat_name2, feat2, nsamples, alpha )
+
+def get_stat_query( feat_name1, feat1, feat_name2, feat2, nsamples, alpha ) :
   
     stat_table = '' 
     
     if ( feat1['dattype'] == 'numeric' and feat2['dattype'] == 'numeric'  )  :
         
         stat_table = """
-SELECT symbol1, symbol2, n, correlation
+SELECT symbol1, symbol2, n, correlation,
+    `isb-cgc-bq.functions.corr_pvalue_current`(correlation, n) AS p_value
 FROM summ_table
 WHERE 
-    n > {0} AND n < 500 AND NOT IS_NAN( correlation)
+    n > {0} 
 GROUP BY 1,2,3,4
-HAVING  `cgc-05-0042.functions.significance_level_ttest2`(n-2, ABS(correlation)*SQRT((n-2)/((1+correlation)*(1-correlation)))) <= {1}
-UNION ALL
-SELECT symbol1, symbol2, n, correlation 
-FROM summ_table
-WHERE 
-    n >= 500 AND NOT IS_NAN( correlation)
-GROUP BY 1,2,3,4
-HAVING erfcc( ABS(correlation)*SQRT(n)/1.414213562373095 ) <= {1}
+HAVING  p_value <= {1}
 ORDER BY ABS(correlation) DESC
 """.format( str(nsamples) , alpha )
         
@@ -541,48 +589,72 @@ ORDER BY Hscore DESC
         
     return stat_table 
 
-def makeWidgets():
-  studyList = [ 'ACC', 'BLCA', 'BRCA', 'CESC', 'CHOL', 'COAD', 'DLBC', 'ESCA', 
+def WidgetsSelectProject():
+    projectList = [ 'TCGA' , 'CPTAC' ] 
+    
+    project = widgets.Dropdown( 
+      options=projectList,
+      value='TCGA',
+      description='',
+      disabled=False
+      )
+        
+    project_title = widgets.HTML('<em>Select a project </em>')
+    display(widgets.HBox([ project_title, project]))
+
+    
+    return([project])
+
+def makeWidgets( project ):
+  
+  feature1 = ''
+  gene_names = []
+  feature2 = ''
+  study = ''
+  significance = ''
+  size = ''
+    
+    
+  if ( project == 'TCGA' ) : 
+    
+      studyList = [ 'ACC', 'BLCA', 'BRCA', 'CESC', 'CHOL', 'COAD', 'DLBC', 'ESCA', 
                 'GBM', 'HNSC', 'KICH', 'KIRC', 'KIRP', 'LAML', 'LGG', 'LIHC', 
                 'LUAD', 'LUSC', 'MESO', 'OV', 'PAAD', 'PCPG', 'PRAD', 'READ', 
                 'SARC', 'SKCM', 'STAD', 'TGCT', 'THCA', 'THYM', 'UCEC', 'UCS', 
                 'UVM' ]
 
-  study = widgets.Dropdown(
-      options=studyList,
-      value='UCEC',
-      description='',
-      disabled=False
-      )
-
+      study = widgets.Dropdown(
+          options=studyList,
+          value='UCEC',
+          description='',
+          disabled=False
+          )
     
-  FeatureList1 = [ 'Gene Expression', 'Somatic Copy Number', 'MicroRNA Expression', 'Clinical Numeric'] ;
+      FeatureList1 = [ 'Gene Expression','MicroRNA Expression' ] ;
+      FeatureList2 = [ 'Gene Expression', 'MicroRNA Expression'] ;  
 
-  #FeatureList2 = [ 'Gene Expression', 'Somatic Mutation Spearman','Somatic Mutation t-test', 'Somatic Copy Number', 'Clinical Numeric', 'Clinical Categorical', 'MicroRNA Expression'] ;
-  FeatureList2 = [ 'Gene Expression', 'Somatic Mutation', 'Somatic Copy Number', 'Clinical Numeric', 'MicroRNA Expression'] ;  
+      feature1 = widgets.Dropdown(
+          options=FeatureList1,
+          value='Gene Expression',
+          description='',
+          disabled=False
+          )
 
-  feature1 = widgets.Dropdown(
-      options=FeatureList1,
-      value='Gene Expression',
-      description='',
-      disabled=False
-      )
+      gene_names = widgets.Text(
+          value='IGF2, ADAM6',
+          placeholder='Type gene names  ',
+          description='',
+          disabled=False
+          )
 
-  gene_names = widgets.Text(
-      value='IGF2, ADAM6',
-      placeholder='Type gene names  ',
-      description='',
-      disabled=False
-      )
+      feature2 = widgets.Dropdown(
+          options=FeatureList2,
+          value='Gene Expression',
+          description='',
+          disabled=False
+          )
 
-  feature2 = widgets.Dropdown(
-      options=FeatureList2,
-      value='Gene Expression',
-      description='',
-      disabled=False
-      )
-
-  significance = widgets.SelectionSlider( options=['0.05', '0.01', '0.005', '0.001'],
+      significance = widgets.SelectionSlider( options=['0.05', '0.01', '0.005', '0.001'],
                                    value='0.01',
                                    description='',
                                    disabled=False,
@@ -591,61 +663,124 @@ def makeWidgets():
                                    readout=True
                                  )
     
-  size = widgets.IntSlider(value=25, 
+      size = widgets.IntSlider(value=25, 
                            min=5, 
                            max=50,
                            description=''
                           )  # the n most variable genes
   
-  cohortlist = widgets.FileUpload(
-      accept='',  # Accepted file extension e.g. '.txt', '.pdf', 'image/*', 'image/*,.pdf'
-      multiple=False  # True to accept multiple files upload else False
-      )  
+
+  elif ( project == 'CPTAC' ):
+        
+      studyList = [ 'CCRCC', 'GBM', 'HNSCC', 'LSCC', 'LUAD', 'PDA', 'UCEC', 'breast_BI',  ]
+
+      study = widgets.Dropdown(
+          options=studyList,
+          value='CCRCC',
+          description='',
+          disabled=False
+          )
     
+      FeatureList1 = [ 'Gene Expression', 'Protein Expression'] ;
+      FeatureList2 = [ 'Gene Expression', 'Protein Expression'] ;  
+
+      feature1 = widgets.Dropdown(
+          options=FeatureList1,
+          value='Gene Expression',
+          description='',
+          disabled=False
+          )
+
+      gene_names = widgets.Text(
+          value='IGF2, ADAM6',
+          placeholder='Type gene names  ',
+          description='',
+          disabled=False
+          )
+
+      feature2 = widgets.Dropdown(
+          options=FeatureList2,
+          value='Protein Expression',
+          description='',
+          disabled=False
+          )
+
+      significance = widgets.SelectionSlider( options=['0.05', '0.01', '0.005', '0.001'],
+                                   value='0.01',
+                                   description='',
+                                   disabled=False,
+                                   continuous_update=False,
+                                   orientation='horizontal',
+                                   cout=True
+                                 )
+    
+      size = widgets.IntSlider(value=25, 
+                           min=5, 
+                           max=50,
+                           description=''
+                          )  # the n most variable genes
+        
+        
+        
+  study_title = widgets.HTML('<em>Select a study </em>')
+  display(widgets.HBox([study_title, study]))
+
+  genes_title = widgets.HTML('<em>Symbol list </em>')
+  display(widgets.HBox([ genes_title, gene_names  ]))
+
   feature1_title = widgets.HTML('<em>Select Feature1 </em>')  
   display(widgets.HBox([ feature1_title, feature1 ]))
-
-  genes_title = widgets.HTML('<em>Feature1 labels </em>')
-  display(widgets.HBox([ genes_title, gene_names  ]))
 
   feature2_title = widgets.HTML('<em>Select Feature2 </em>')  
   display(widgets.HBox([ feature2_title, feature2 ]))
 
-  study_title = widgets.HTML('<em>Select a study </em>')
-  display(widgets.HBox([study_title, study]))
-    
   significance_title = widgets.HTML('<em>Significance level </em>')
   display(widgets.HBox([ significance_title, significance]))
     
   size_title = widgets.HTML('<em>Minimum number of samples</em>')
   display(widgets.HBox([size_title, size]))
     
-  cohort_title = widgets.HTML('<em>Cohort list</em>')
-  display(widgets.HBox([cohort_title, cohortlist]))
+  #cohort_title = widgets.HTML('<em>Cohort list</em>')
+  #display(widgets.HBox([cohort_title, cohortlist]))
   
   
-  return([study, feature1, feature2, gene_names, size, cohortlist, significance])
+  return([study, feature1, feature2, gene_names, size,  significance])
 
 
-def makeWidgetsPair() : 
-  gene_name1 = widgets.Text(
-      value='',
-      placeholder='label name',
-      description='',
-      disabled=False
-      )
+def makeWidgetsPair(list1, list2) : 
+  # updated this section to use drop down widget - JAW
+  # gene_name1 = widgets.Text(
+  #     value='',
+  #     placeholder='label name',
+  #     description='',
+  #     disabled=False
+  #     )
 
-  gene_name2 = widgets.Text(
-      value='',
-      placeholder='label name',
-      description='',
-      disabled=False
-      )  
+  # gene_name2 = widgets.Text(
+  #     value='',
+  #     placeholder='label name',
+  #     description='',
+  #     disabled=False
+  #     )  
   
-  gene1_title = widgets.HTML('<em>Type label 1 </em>')
+  gene_name1 = widgets.Dropdown(
+    options = list1,
+    value = list1[0],
+    description = '',
+    disabled = False
+  )
+
+  gene_name2 = widgets.Dropdown(
+    options = list2,
+    value = list2[0],
+    description = '',
+    disabled = False
+  )
+
+  gene1_title = widgets.HTML('<em>Select symbol 1 </em>')
   display(widgets.HBox([ gene1_title, gene_name1  ]))
 
-  gene2_title = widgets.HTML('<em>Type label 2 </em>')
+  gene2_title = widgets.HTML('<em>Select symbol 2 </em>')
   display(widgets.HBox([ gene2_title, gene_name2  ]))
 
   
@@ -655,7 +790,7 @@ def makeWidgetsPair() :
  
 
 def table_pair ( symbol, feature2_name, study, samplelist, table_label ) :
-   
+
    ft = bqtable_data( feature2_name ) 
 
    if ( feature2_name == 'Clinical Numeric' or feature2_name == 'Clinical Categorical' ) :
@@ -712,16 +847,50 @@ FROM (
    
    return( query_table )
 
+def table_pair_cptac( symbol, feature2_name, study, samplelist, table_label ) :
+
+   ft = bqtable_data_cptac( feature2_name, study ) 
+   
+   
+
+   query_table = table_label + """ AS (
+SELECT
+   symbol,
+   avgdata AS data,
+   ParticipantBarcode
+FROM (
+   SELECT
+      t1.{0} AS symbol, 
+      {1} AS avgdata,
+      t2.{2} AS ParticipantBarcode
+   FROM `{3}` t1
+   JOIN `isb-cgc-bq.PDC_metadata.aliquot_to_case_mapping_current` as t2
+   ON  t1.{4} = t2.{5}   # cohort 
+         AND t1.{0} = '{6}'
+         {7}  
+   GROUP BY
+      ParticipantBarcode, symbol
+   )
+)
+""".format(ft['symbol'],ft['data'],ft['patientcode'],ft['table'], ft['samplecode'],ft['metasampleid'], symbol, ft['where'] )
+        
+   return( query_table )
+
+
     
-    
-def get_query_pair (name1, name2, study, samplelist, feature1_name, feature2_name): 
+def get_query_pair (project, name1, name2, study, samplelist, feature1_name, feature2_name): 
 
    name1 = name1.strip()
-   name2 = name2.strip() 
-    
-   query_table1 =  table_pair(name1, feature1_name , study, samplelist, 'table1' )
-   query_table2 =  table_pair(name2, feature2_name , study, samplelist, 'table2' )
+   name2 = name2.strip()
+   
+   if ( project == 'TCGA') :  
+       query_table1 =  table_pair(name1, feature1_name , study, samplelist, 'table1' )
+       query_table2 =  table_pair(name2, feature2_name , study, samplelist, 'table2' )
 
+   elif ( project == 'CPTAC' ) :
+       query_table1 =  table_pair_cptac(name1, feature1_name , study, samplelist, 'table1' )
+       query_table2 =  table_pair_cptac(name2, feature2_name , study, samplelist, 'table2' )
+    
    if ( (feature2_name == 'Gene Expression') or (feature2_name == 'Somatic Copy Number')   ):
       data2_str = 'n2.data' 
    elif ( (feature2_name == 'Somatic Mutation t-test') or feature2_name == 'Somatic Mutation' ):
@@ -743,11 +912,22 @@ ON  n1.ParticipantBarcode = n2.ParticipantBarcode""".format( data2_str)
    return( query_pair )
 
 
-def plot_statistics_pair ( mydf , feature2_name, name1 , name2, nsamples ) :  
+def plot_statistics_pair ( mydf, project, study, feature1_name, feature2_name, name1 , name2, nsamples ) :  
+    
+   
+    if ( project == 'TCGA') :  
+       ft1 = bqtable_data( feature1_name )    
+       ft2 = bqtable_data( feature1_name  )
 
-    if ( (feature2_name == 'Gene Expression') or (feature2_name == 'Somatic Copy Number') or  (feature2_name == 'Clinical Numeric') or (feature2_name == 'MicroRNA Expression') ): 
+    elif ( project == 'CPTAC' ) :
+       ft1 = bqtable_data_cptac( feature1_name, study )    
+       ft2 = bqtable_data_cptac( feature1_name, study )
+    
+    
+
+    if ( (ft1['dattype'] == 'numeric') and (ft2['dattype'] == 'numeric')  ): 
          
-         label1 = name1.strip() + " (gene expression)"
+         label1 = name1.strip() + " (" +  feature1_name + ")"
          label2 = name2.strip() + " (" +  feature2_name + ")" 
          
          new_df = pd.DataFrame()
