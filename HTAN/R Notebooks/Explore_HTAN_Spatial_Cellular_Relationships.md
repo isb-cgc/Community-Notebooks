@@ -1,3 +1,19 @@
+---
+title: "Explore Spatial Cellular and Molecular Relationships in HTAN using Google BigQuery"
+author: "Vesteinn Þórsson, Institute for Systems Biology"
+date: "Created June 1, 2023"
+output:
+  html_document:
+    keep_md: true
+    highlight: tango
+    toc: yes
+    toc_float:
+      collapsed: yes
+      smooth_scroll: no
+  pdf_document:
+    toc: yes
+---
+
 # 1. Introduction & Overview
 
 [HTAN](https://humantumoratlas.org/) is a National Cancer Institute
@@ -52,12 +68,14 @@ e.g., `r2`. To get results for the most current data release, replace:
 
 # 2. Environment & Library Setup
 
+```r
     suppressMessages(library(tidyverse))
     suppressMessages(library(bigrquery))
     suppressMessages(library(knitr))
     suppressMessages(library(rdist))
     suppressMessages(library(dbscan))
     suppressMessages(library(ggforce))
+```
 
 # 3. Google Authentication
 
@@ -71,10 +89,12 @@ ISB-CGC](https://nbviewer.org/github/isb-cgc/Community-Notebooks/blob/master/Not
 and alternative authentication methods can be found in the [Google
 Documentation](https://cloud.google.com/resource-manager/docs/creating-managing-projects#console).
 
+```r
     billing <- 'my-projectr' # Insert your project ID in the ''
     if (billing == 'my-projectr') {
       print('Please update the project number with your Google Cloud Project')
     }
+```
 
 # 4. Explore Spatial Cellular and Molecular Relationships
 
@@ -99,6 +119,7 @@ Here we will use the cell locations in terms of the centroids
 We begin by querying for the coordinates of the centroids for the
 relevant tissue slice `HTA13_1_101`.
 
+```r
     sql <- "SELECT X_centroid, Y_centroid
     FROM `isb-cgc-bq.HTAN_versioned.imaging_level4_HMS_crc_mask_r3`
     WHERE HTAN_Biospecimen_ID='HTA13_1_101'"
@@ -106,22 +127,28 @@ relevant tissue slice `HTA13_1_101`.
     df <- bq_table_download(tb)
 
     df <- df %>% rename(X="X_centroid",Y="Y_centroid")
+```
 
 This gives a table as an R data frame. Each row corresponds to once
 cell, and columns are the corresponding X and Y coordinates.
 
 How many cells are there?
 
+```r
     nrow(df)
-
+```
+```r
     ## [1] 1287131
+```
 
 Now let’s do a scatter plot of the centroids. (With over a million cells
 (!), this will take a few seconds.)
 
+```r
     ggplot(df, aes(X,Y)) +
      geom_point(size=0.01) +
       theme_classic()
+```
 
 <img src="Explore_HTAN_Spatial_Cellular_Relationships_files/figure-markdown_strict/unnamed-chunk-5-1.png" style="display: block; margin: auto;" />
 
@@ -135,6 +162,7 @@ pixels.
 
 Pixels and physical dimensions
 
+```r
     micron_per_pixel=0.65
     X_total_pixels=26139
     Y_total_pixels=27120
@@ -142,6 +170,7 @@ Pixels and physical dimensions
     X_total_physical_dimension_mm=X_total_pixels*micron_per_pixel/10^3
     Y_total_physical_dimension_mm=Y_total_pixels*micron_per_pixel/10^3
     whole_slide_dimension_mm_squared=X_total_physical_dimension_mm * Y_total_physical_dimension_mm
+```
 
 The whole slide is image is `total_megapixels`=708.88968 Megapixels, and
 is `X_total_physical_dimension_mm`=16.99035 mm wide and
@@ -152,15 +181,19 @@ not visibly consistent with manuscript images (Figure 1C, e.g).
 
 This can be improved with simply flipping the image top to bottom:
 
+```r
     df <- df %>% mutate(Y_flipped=-Y+Y_total_pixels)
+```
 
 Replot.
 
+```r
     ggplot(df, aes(X,Y_flipped)) +
      geom_point(size=0.01) + ylab("Y") +
       ggtitle("Cellular locations for biospecimen \n HTA13_1_101,CRC1 slice 97") +
       theme(plot.title = element_text(hjust = 0.5)) +
       theme_classic()
+```
 
 <img src="Explore_HTAN_Spatial_Cellular_Relationships_files/figure-markdown_strict/unnamed-chunk-8-1.png" style="display: block; margin: auto;" />
 
@@ -169,10 +202,12 @@ on.
 
 Where is the greatest density of cells?
 
+```r
     d <- ggplot(df,aes(X,Y_flipped))
     d + geom_hex() + ylab("Y") +
       ggtitle("Cellular density for biospecimen \n HTA13_1_101,CRC1 slice 97") +
       theme_classic()
+```
 
 <img src="Explore_HTAN_Spatial_Cellular_Relationships_files/figure-markdown_strict/unnamed-chunk-9-1.png" style="display: block; margin: auto;" />
 
@@ -182,6 +217,7 @@ Keratin is used as marker for tumor cells in this study. We augment the
 table query to include the marker for keratin:
 `Keratin_570_cellRingMask`.
 
+```r
     sql <- "SELECT X_centroid, Y_centroid, Keratin_570_cellRingMask 
     FROM `isb-cgc-bq.HTAN_versioned.imaging_level4_HMS_crc_mask_r3`
     WHERE HTAN_Biospecimen_ID='HTA13_1_101'"
@@ -189,19 +225,24 @@ table query to include the marker for keratin:
     df <- bq_table_download(tb)
     df <- df %>% rename(Keratin=Keratin_570_cellRingMask,X=X_centroid,Y=Y_centroid)
     df <- df %>% mutate(Y_flipped=-Y+min(Y)+max(Y)) %>% select(-Y) %>% rename(Y=Y_flipped)
+```
 
 What is the distribution of Keratin values over all cells?
 
+```r
     ggplot(df,aes(Keratin)) + geom_histogram(binwidth = 1000) +
       ggtitle("Distribution of Keratin in Cells for HTA13_1_101") +
       theme_classic()
+```
 
 <img src="Explore_HTAN_Spatial_Cellular_Relationships_files/figure-markdown_strict/unnamed-chunk-11-1.png" style="display: block; margin: auto;" />
 
 Let’s threshold the Keratin as being positive above the 3rd quartile.
 
+```r
     third.quartile <- summary(df$Keratin)[["3rd Qu."]]
     df <- df %>% mutate(Keratin_status = c("Neg","Pos")[(Keratin > third.quartile)+1])
+```
 
 This has generated a new categorical variable, `Keratin_status`,
 designated as Low or High for every cell. A more sophisticated
@@ -211,11 +252,13 @@ and described in the corresponding methods section.
 
 Where are the Keratin-high cells on the image?
 
+```r
     ggplot(df, aes(X,Y)) +
      geom_point(aes(color=Keratin_status),size=0.01,show.legend = FALSE) +   
       scale_color_manual(values=c("gray90","darkblue")) +
       ggtitle("Keratin-high regions in biospecimen \n HTA13_1_101,CRC1 slice 97") +
       theme_classic()
+```
 
 <img src="Explore_HTAN_Spatial_Cellular_Relationships_files/figure-markdown_strict/unnamed-chunk-13-1.png" style="display: block; margin: auto;" />
 
@@ -242,6 +285,7 @@ be a faster query than for the whole slide). The query also includes and
 returns `CellID`, a unique ID for every cell resulting from the cell
 segmentation.
 
+```r
     sql <- "SELECT CellID, X_centroid, Y_centroid, Keratin_570_cellRingMask 
     FROM `isb-cgc-bq.HTAN_versioned.imaging_level4_HMS_crc_mask_r3` where HTAN_Biospecimen_ID='HTA13_1_101'
     AND X_centroid > 5000 AND X_centroid < 7500
@@ -249,6 +293,7 @@ segmentation.
     tb <- bq_project_query(billing, sql)
     df_small <- bq_table_download(tb)
     df_small <- df_small %>% rename(Keratin=Keratin_570_cellRingMask,X=X_centroid,Y=Y_centroid)
+```
 
 Counting rows, there are 26229 cells within this region.
 
@@ -260,18 +305,22 @@ We now identify the 10 nearest neighbors of each cell. We first
 calculate all pairwise distances among cells and then find the nearest
 neighbors of each cell using the `dbscan` package.
 
+```r
     k <- 10
     point_distances <- rdist::pdist(df_small[,c("X","Y")])
     point_distances_dist_object <- as.dist(point_distances)
     nearest_neighbors <- dbscan::kNN(point_distances_dist_object,k)
+```
 
 The `nearest_neighbors` object contains the nearest neighbors of all
 26229 cells. For a particular cell, e.g. the one with `CellID` 995338,
 the IDs and distance of nearest neighbors (in pixels) can be found
 through indexing this object.
 
+```r
     cell_index <- which(df_small$CellID==995338)
     kable(cbind(CellID=df_small$CellID[nearest_neighbors$id[cell_index,]],Distance=nearest_neighbors$dist[cell_index,]))
+```
 
 <table>
 <thead>
@@ -326,10 +375,12 @@ through indexing this object.
 
 This X, Y location of the cell can be seen in the data as follows
 
+```r
     cell_index <- which(df_small$CellID==995338)
     cell_data <- df_small[cell_index,]
     xc <- cell_data$X ; yc <- cell_data$Y
     kable(cell_data)
+```
 
 <table>
 <thead>
@@ -356,12 +407,15 @@ This cell is at these crosshairs
 
 Let’s look at a 100 pixel square containing this cell centroid.
 
+```r
     s <- 50 ; xc <- cell_data$X ; yc <- cell_data$Y
     df_smaller <- df_small %>% filter(X > xc-s & X< xc+s) %>% filter(Y > yc-s & Y< yc+s)
+```
 
 Let’s plot this smaller region, and include concentric circles in steps
 of 10 pixels radius.
 
+```r
     ggplot(df_smaller, aes(X,Y,label=CellID)) +
       geom_point(size=0.3) +
       geom_text(hjust = -0.1) + 
@@ -379,6 +433,7 @@ of 10 pixels radius.
                       y = yc + 40 * sin(seq(0, 2 * pi, length.out = 100)),
                       color = "red", linewidth = 0.5) +
       theme_classic()
+```
 
 <img src="Explore_HTAN_Spatial_Cellular_Relationships_files/figure-markdown_strict/unnamed-chunk-21-1.png" style="display: block; margin: auto;" />
 
@@ -397,12 +452,14 @@ r=10).
 For each cell, look up the neighboring cells, calculate the mean Keratin
 value of the neighbors, and append that value to our data frame.
 
+```r
     collect <- numeric()
     for (index in 1:nrow(df_small) ){
       meanz <- df_small[nearest_neighbors$id[index,],"Keratin"] %>% pluck("Keratin") %>% mean()
       collect <- c(collect,meanz)
     }
     df_small <- df_small %>% add_column(Keratin_10NN_mean=collect)
+```
 
 This plot shows the relation between the cell values and the mean value
 of neighbors
@@ -411,9 +468,12 @@ of neighbors
 
 We can now calculate the correlation.
 
+```r
     df_small %>% summarize(cor(Keratin,Keratin_10NN_mean)) %>% pluck(1)
-
+```
+```r
     ## [1] 0.8469181
+```
 
 The correlation is fairly high and in line with results shown in the
 manuscript (Figure 2B). To calculate the correlation length, one needs
@@ -425,6 +485,7 @@ described in the manuscript (see Figure 2B).
 Let’s use BigQuery to retrieve information on leukocytes using cellular
 CD45 values.
 
+```r
     sql <- "SELECT X_centroid, Y_centroid, Keratin_570_cellRingMask,CD45_PE_cellRingMask  
     FROM `isb-cgc-bq.HTAN_versioned.imaging_level4_HMS_crc_mask_r3`
     WHERE HTAN_Biospecimen_ID='HTA13_1_101'
@@ -434,12 +495,15 @@ CD45 values.
     df_small <- bq_table_download(tb)
 
     df_small <- df_small %>% rename(Keratin=Keratin_570_cellRingMask,X=X_centroid,Y=Y_centroid,CD45=CD45_PE_cellRingMask)
+```
 
 What is the distribution of CD45 values over all cells?
 
+```r
     ggplot(df_small,aes(CD45)) + geom_histogram(binwidth = 200) +
       ggtitle("CD45 values in cells in HTA13_1_101 subregion") +
       theme_classic()
+```
 
 <img src="Explore_HTAN_Spatial_Cellular_Relationships_files/figure-markdown_strict/unnamed-chunk-26-1.png" style="display: block; margin: auto;" />
 
@@ -447,15 +511,19 @@ We’ll use the (overly) simple definition of marker-positive cells as
 exceeding the 3rd quartile of the cell value distribution for each
 marker.
 
+```r
     third.quartile.keratin <- summary(df_small$Keratin)[["3rd Qu."]]
     df_small <- df_small %>% mutate(Keratin_status = c("Neg","Pos")[(Keratin > third.quartile.keratin)+1])
     third.quartile.cd45 <- summary(df_small$CD45)[["3rd Qu."]]
     df_small <- df_small %>% mutate(CD45_status = c("Neg","Pos")[(CD45 > third.quartile.cd45)+1])
+```
 
 The distribution of CD45 positive and Keratin positive cells is as
 follows by this definition.
 
+```r
     kable(df_small %>% group_by(CD45_status,Keratin_status) %>% do(data.frame(Count=nrow(.))))
+```
 
 <table>
 <thead>
@@ -495,6 +563,7 @@ positives (DPs) is well below the random expectation of
 
 Let’s phenotype the cells based on this scheme
 
+```r
     phenotype <- function(x,y){
       case_when(
       x >= third.quartile.keratin & y >= third.quartile.cd45 ~ "DP",
@@ -504,14 +573,17 @@ Let’s phenotype the cells based on this scheme
       )
     }
     df_small <- df_small %>% mutate(Phenotype=phenotype(Keratin,CD45))
+```
 
 Let’s see how the cell phenotypes are distributed in the region.
 
+```r
     ggplot(df_small, aes(X,Y)) +
      geom_point(aes(color=Phenotype),size=0.3) +
       scale_color_manual(values=c("blue","magenta","gray90","yellow")) +
       ggtitle("Spatial distribution of tumor and immune cells \n in HTA13_1_101 region") +
       theme_classic()
+```
 
 <img src="Explore_HTAN_Spatial_Cellular_Relationships_files/figure-markdown_strict/unnamed-chunk-30-1.png" style="display: block; margin: auto;" />
 
