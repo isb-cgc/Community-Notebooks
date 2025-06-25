@@ -66,6 +66,10 @@ e.g., `r2`. To get results for the most current data release, replace:
 
 -   `HTAN_versioned` with `HTAN`
 
+#
+### ⚠️PAUSE
+Notebooks associated with ISB-CGC HTAN Releases 6.0 or earlier are based on the **HTAN Phase 1 Data Model**. Please be aware that the structure, terminology, and available data elements may differ from those in Phase 2. 
+
 # 2. Environment & Library Setup
 
 ```r
