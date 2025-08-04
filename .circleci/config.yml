@@ -1,0 +1,160 @@
+version: 2.1
+commands:
+  deployment_setup:
+    steps:
+      - run:
+          name: "Set the Tier"
+          command: |
+            TIER=DEV
+            if [[ ${CIRCLE_BRANCH} =~ bq-proxy-(prod|test).* ]]; then
+              TIER=$(awk -F- '{print toupper($3)}' \<<< ${CIRCLE_BRANCH})
+              echo "Saw deployment branch."
+            else
+              echo "Saw dev tier branch."
+            fi
+            echo "export TIER=${TIER}" >> $BASH_ENV
+            echo "Tier was identified as ${TIER} for branch ${CIRCLE_BRANCH}"
+      - run:
+          name: "Assign Project-level vars"
+          command: |
+            if [ ! -f deployment.key.json ]; then
+              echo "Deployment JSON keyfile not found - loading from CircleCI."
+              KEY=${DEPLOYMENT_KEY_ISB_CGC_DEV}
+            else
+              echo "Deployment JSON keyfile found."
+              KEY="NA"
+            fi
+            CLIENT_EMAIL=${DEPLOYMENT_CLIENT_EMAIL_ISB_CGC_DEV}
+            PROJECT_ID=${DEPLOYMENT_PROJECT_ID_ISB_CGC_DEV}
+            BUCKET=${DEPLOYMENT_BUCKET_ISB_CGC_DEV}
+            DEPLOYMENT_CONFIG=bq-proxy.deployment_config.txt
+            if [[ ${TIER} == "PROD" ]]; then
+              CLIENT_EMAIL=${DEPLOYMENT_CLIENT_EMAIL_ISB_CGC}
+              PROJECT_ID=${DEPLOYMENT_PROJECT_ID_ISB_CGC}
+              BUCKET="${DEPLOYMENT_BUCKET_ISB_CGC}/${TIER,,}"
+              KEY=${DEPLOYMENT_KEY_ISB_CGC}
+              echo "Using production project with related deployment SA and bucket."
+            elif [[ ${TIER} == "TEST" ]]; then
+              KEY=${DEPLOYMENT_KEY_ISB_CGC_TEST}
+              CLIENT_EMAIL=${DEPLOYMENT_CLIENT_EMAIL_ISB_CGC_TEST}
+              PROJECT_ID=${DEPLOYMENT_PROJECT_ID_ISB_CGC_TEST}
+              BUCKET=${DEPLOYMENT_BUCKET_ISB_CGC_TEST}
+              echo "Using test project with related deployment SA and bucket."
+            elif [[ ${TIER} == "DEV" ]]; then
+              echo "Using default deployment configuration for tier ${TIER}"
+            else
+              echo "[ERROR] - Unrecognized tier: ${TIER} - exitng."
+              exit 1
+            fi
+
+            echo "export DEPLOYMENT_KEY=\"${KEY}\"" >> $BASH_ENV
+            echo "export DEPLOYMENT_CLIENT_EMAIL=${CLIENT_EMAIL}" >> $BASH_ENV
+            echo "export DEPLOYMENT_PROJECT_ID=${PROJECT_ID}" >> $BASH_ENV
+            echo "export DEPLOYMENT_BUCKET=${BUCKET}" >> $BASH_ENV
+            echo "export DEPLOYMENT_CONFIG=${DEPLOYMENT_CONFIG}" >> $BASH_ENV
+
+            echo "Project settings assigned:"
+            echo "Deployment client: ${CLIENT_EMAIL}"
+            echo "Deployment project: ${PROJECT_ID}"
+            echo "Deployment bucket: gs://${BUCKET}"
+
+  deployment_config:
+    steps:
+      - run:
+          name: "Set tier-specific configuration file"
+          command: |
+            sudo -E /bin/bash ./shell/pull-config.sh
+            xargs -a ${DEPLOYMENT_CONFIG} -I{} echo "export {}" >> $BASH_ENV
+
+  auth:
+    steps:
+      - run:
+          name: "Service Account Auth and Project Settings "
+          command: |
+            sudo -E /bin/bash ./shell/gcloud-auth.sh
+
+  install_cloud_sdk:
+    steps:
+      - run:
+          name: "Install CloudSDK"
+          command: |
+            echo "export CLOUDSDK_CORE_DISABLE_PROMPTS=1" >> $BASH_ENV
+            sudo apt-get update -qq
+            sudo apt-get install ca-certificates python3-distutils apt-transport-https gnupg
+            echo "deb [signed-by=/usr/share/keyrings/cloud.google.gpg] https://packages.cloud.google.com/apt cloud-sdk main" | sudo tee -a /etc/apt/sources.list.d/google-cloud-sdk.list
+            curl https://packages.cloud.google.com/apt/doc/apt-key.gpg | sudo apt-key --keyring /usr/share/keyrings/cloud.google.gpg add -
+            sudo apt-get update -qq
+            sudo apt-get -y install google-cloud-sdk
+
+jobs:
+  build_job:
+    environment:
+      TZ: "/usr/share/zoneinfo/America/Los_Angeles"
+    working_directory: ~/Community-Notebooks/BQProxy
+    docker:
+      - image: cimg/python:3.11
+    steps:
+      - checkout
+      - run:
+          name: Set Python Path
+          command: |
+            echo "export PYTHONPATH=/home/circleci/${CIRCLE_PROJECT_REPONAME}:/home/circleci/${CIRCLE_PROJECT_REPONAME}/lib:/usr/lib/google-cloud-sdk/platform/google_appengine" >> $BASH_ENV
+      - deployment_setup
+      - auth
+      - deployment_config
+      - run:
+          name: Staging
+          command: |
+            sudo -E /bin/bash ./shell/gcloud-pull-staging-files.sh
+      - run:
+          name: Compare Config
+          command: |
+            echo "Compare app.yaml"
+            sudo -E /bin/bash ./shell/compareConfig.sh "gs://${DEPLOYMENT_BUCKET}/app.yaml"
+            echo "Compare deployment config text file"
+            sudo -E /bin/bash ./shell/compareConfig.sh "gs://${DEPLOYMENT_BUCKET}/deployment_config.txt"
+
+      - save_cache:
+          key: bq-proxy-{{ .Branch }}-{{ .Revision }}-{{ epoch }}
+          paths:
+            - ./.git
+            - ./shell
+            - ./app.yaml
+            - ./dispatch.yaml
+            - ./bqroutes.py
+            - ./main.py
+            - ./collab_queries.py
+            - ./requirements.txt
+
+  deploy_job:
+    environment:
+      TZ: "/usr/share/zoneinfo/America/Los_Angeles"
+    working_directory: ~/Community-Notebooks/BQProxy
+    docker:
+      - image: cimg/python:3.11
+    steps:
+      - restore_cache:
+          keys:
+            - bq-proxy-{{ .Branch }}-{{ .Revision }}-
+      - install_cloud_sdk
+      - deployment_setup
+      - auth
+      - deployment_config
+      - run:
+          command: |
+            sudo -E gcloud config set app/cloud_build_timeout 1600
+            sudo -E gcloud app deploy --verbosity=debug ./app.yaml ./dispatch.yaml
+workflows:
+  version: 2
+  build_and_deploy:
+    jobs:
+      - build_job
+      - deploy_job:
+          requires:
+            - build_job
+          filters:
+            branches:
+              only:
+                - bq-proxy-main
+                - bq-proxy-test
+                - bq-proxy-prod
