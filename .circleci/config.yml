@@ -99,6 +99,7 @@ jobs:
           name: Set Python Path
           command: |
             echo "export PYTHONPATH=/home/circleci/${CIRCLE_PROJECT_REPONAME}:/home/circleci/${CIRCLE_PROJECT_REPONAME}/lib:/usr/lib/google-cloud-sdk/platform/google_appengine" >> $BASH_ENV
+      - install_cloud_sdk
       - deployment_setup
       - auth
       - deployment_config
