@@ -71,6 +71,9 @@ commands:
       - run:
           name: "Service Account Auth and Project Settings "
           command: |
+            pwd
+            ls -la ~/
+            ls -la ${CIRCLE_WORKING_DIRECTORY}
             sudo -E /bin/bash ${CIRCLE_WORKING_DIRECTORY}/shell/gcloud-auth.sh
 
   install_cloud_sdk:
