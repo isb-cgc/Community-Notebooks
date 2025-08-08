@@ -107,7 +107,7 @@ jobs:
       - run:
           name: Staging
           command: |
-            sudo -E /bin/bash ./shell/gcloud-pull-staging-files.sh
+            sudo -E /bin/bash ./shell/gcloud-pull-staging.sh
       - run:
           name: Compare Config
           command: |
