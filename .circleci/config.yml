@@ -73,6 +73,8 @@ commands:
           command: |
             pwd
             ls -la ~/
+            ls -la ~/Community-Notebooks
+            ls -la ~/Community-Notebooks/BQProxy
             ls -la ${CIRCLE_WORKING_DIRECTORY}
             sudo -E /bin/bash ${CIRCLE_WORKING_DIRECTORY}/shell/gcloud-auth.sh
 
@@ -102,9 +104,9 @@ jobs:
           name: Set Python Path
           command: |
             echo "export PYTHONPATH=/home/circleci/${CIRCLE_PROJECT_REPONAME}:/home/circleci/${CIRCLE_PROJECT_REPONAME}/lib:/usr/lib/google-cloud-sdk/platform/google_appengine" >> $BASH_ENV
+      - auth
       - install_cloud_sdk
       - deployment_setup
-      - auth
       - deployment_config
       - run:
           name: Staging
