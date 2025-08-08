@@ -14,10 +14,10 @@
 # limitations under the License.
 ###
 
-if [ ! -f "/home/circleci/${CIRCLE_PROJECT_REPONAME}/${DEPLOYMENT_CONFIG}" ]; then
-    gsutil cp gs://${DEPLOYMENT_BUCKET}/${DEPLOYMENT_CONFIG} /home/circleci/${CIRCLE_PROJECT_REPONAME}/
-    chmod ugo+r /home/circleci/${CIRCLE_PROJECT_REPONAME}/${DEPLOYMENT_CONFIG}
-    if [ ! -f "/home/circleci/${CIRCLE_PROJECT_REPONAME}/${DEPLOYMENT_CONFIG}" ]; then
+if [ ! -f "${CIRCLE_WORKING_DIRECTORY}/${DEPLOYMENT_CONFIG}" ]; then
+    gsutil cp gs://${DEPLOYMENT_BUCKET}/${DEPLOYMENT_CONFIG} ${CIRCLE_WORKING_DIRECTORY}/
+    chmod ugo+r ${CIRCLE_WORKING_DIRECTORY}/${DEPLOYMENT_CONFIG}
+    if [ ! -f "${CIRCLE_WORKING_DIRECTORY}/${DEPLOYMENT_CONFIG}" ]; then
       echo "[ERROR] Couldn't assign deployment configuration file '${DEPLOYMENT_CONFIG}' - exiting."
       exit 1
     else

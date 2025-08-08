@@ -63,15 +63,15 @@ commands:
       - run:
           name: "Set tier-specific configuration file"
           command: |
-            sudo -E /bin/bash ./BQProxy/shell/pull-config.sh
-            xargs -a ${DEPLOYMENT_CONFIG} -I{} echo "export {}" >> $BASH_ENV
+            sudo -E /bin/bash ${CIRCLE_WORKING_DIRECTORY}/shell/pull-config.sh
+            xargs -a ${CIRCLE_WORKING_DIRECTORY}/${DEPLOYMENT_CONFIG} -I{} echo "export {}" >> $BASH_ENV
 
   auth:
     steps:
       - run:
           name: "Service Account Auth and Project Settings "
           command: |
-            sudo -E /bin/bash ./BQProxy/shell/gcloud-auth.sh
+            sudo -E /bin/bash ${CIRCLE_WORKING_DIRECTORY}/shell/gcloud-auth.sh
 
   install_cloud_sdk:
     steps:
