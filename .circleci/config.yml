@@ -95,8 +95,7 @@ jobs:
       - image: cimg/python:3.11
     steps:
       - checkout:
-          path:
-            - ~/Community-Notebooks
+          path: ~/Community-Notebooks
       - run:
           name: Set Python Path
           command: |
