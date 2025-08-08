@@ -145,7 +145,7 @@ jobs:
       - run:
           command: |
             sudo -E gcloud config set app/cloud_build_timeout 1600
-            sudo -E gcloud app deploy --verbosity=debug ./app.yaml ./dispatch.yaml
+            sudo -E gcloud app deploy --verbosity=debug ./app.yaml --service-account=${WEBAPP_RUNTIME_SA_NAME} ./dispatch.yaml
 workflows:
   version: 2
   build_and_deploy:
