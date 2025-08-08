@@ -14,10 +14,10 @@
 # limitations under the License.
 ###
 
-if [ ! -f "${CIRCLE_WORKING_DIRECTORY}/${DEPLOYMENT_CONFIG}" ]; then
-    gsutil cp gs://${DEPLOYMENT_BUCKET}/${DEPLOYMENT_CONFIG} ${CIRCLE_WORKING_DIRECTORY}/
-    chmod ugo+r ${CIRCLE_WORKING_DIRECTORY}/${DEPLOYMENT_CONFIG}
-    if [ ! -f "${CIRCLE_WORKING_DIRECTORY}/${DEPLOYMENT_CONFIG}" ]; then
+if [ ! -f "./${DEPLOYMENT_CONFIG}" ]; then
+    gsutil cp gs://${DEPLOYMENT_BUCKET}/${DEPLOYMENT_CONFIG} ./
+    chmod ugo+r ./${DEPLOYMENT_CONFIG}
+    if [ ! -f "./${DEPLOYMENT_CONFIG}" ]; then
       echo "[ERROR] Couldn't assign deployment configuration file '${DEPLOYMENT_CONFIG}' - exiting."
       exit 1
     else

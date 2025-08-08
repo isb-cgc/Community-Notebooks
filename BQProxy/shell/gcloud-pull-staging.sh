@@ -1,2 +1,2 @@
-gsutil cp "gs://${DEPLOYMENT_BUCKET}/${APP_YAML}" ./${CIRCLE_WORKING_DIRECTORY}/app.yaml
-gsutil cp "gs://${DEPLOYMENT_BUCKET}/${DISPATCH_YAML}" ./${CIRCLE_WORKING_DIRECTORY}/dispatch.yaml
+gsutil cp "gs://${DEPLOYMENT_BUCKET}/${APP_YAML}" ./app.yaml
+gsutil cp "gs://${DEPLOYMENT_BUCKET}/${DISPATCH_YAML}" ./dispatch.yaml
