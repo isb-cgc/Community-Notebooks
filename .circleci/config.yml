@@ -63,20 +63,15 @@ commands:
       - run:
           name: "Set tier-specific configuration file"
           command: |
-            sudo -E /bin/bash ${CIRCLE_WORKING_DIRECTORY}/shell/pull-config.sh
-            xargs -a ${CIRCLE_WORKING_DIRECTORY}/${DEPLOYMENT_CONFIG} -I{} echo "export {}" >> $BASH_ENV
+            sudo -E /bin/bash ./shell/pull-config.sh
+            xargs -a ./${DEPLOYMENT_CONFIG} -I{} echo "export {}" >> $BASH_ENV
 
   auth:
     steps:
       - run:
           name: "Service Account Auth and Project Settings "
           command: |
-            pwd
-            ls -la ~/
-            ls -la ~/Community-Notebooks
-            ls -la ~/Community-Notebooks/BQProxy
-            ls -la ${CIRCLE_WORKING_DIRECTORY}
-            sudo -E /bin/bash ${CIRCLE_WORKING_DIRECTORY}/shell/gcloud-auth.sh
+            sudo -E /bin/bash ./shell/gcloud-auth.sh
 
   install_cloud_sdk:
     steps:
@@ -99,14 +94,16 @@ jobs:
     docker:
       - image: cimg/python:3.11
     steps:
-      - checkout
+      - checkout:
+          path:
+            - ~/Community-Notebooks
       - run:
           name: Set Python Path
           command: |
             echo "export PYTHONPATH=/home/circleci/${CIRCLE_PROJECT_REPONAME}:/home/circleci/${CIRCLE_PROJECT_REPONAME}/lib:/usr/lib/google-cloud-sdk/platform/google_appengine" >> $BASH_ENV
-      - auth
       - install_cloud_sdk
       - deployment_setup
+      - auth
       - deployment_config
       - run:
           name: Staging
