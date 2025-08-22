@@ -1,3 +1,29 @@
+from google.cloud import bigquery
+from google.oauth2.credentials import Credentials
+
+api_endpoint = "https://bqproxy-dot-isb-cgc-dev-1.uc.r.appspot.com/bqproxy"
+demo_mode = True
+
+def demo_client_args():
+    if demo_mode:
+        ret = {"credentials": Credentials(token='dummy', expiry=None),
+               "client_options": {"api_endpoint": api_endpoint}}
+    else:
+        ret = {}
+    return ret
+
+def demo_job_config_arg(query_id, job_config=None, demo_query_params=[]):
+    if demo_mode:
+        if job_config is None:
+            job_config = bigquery.QueryJobConfig()
+        new_params = list(job_config.query_parameters or [])
+        new_params.append(bigquery.ScalarQueryParameter("queryid", "STRING", query_id))
+        new_params.extend(*[demo_query_params])
+        job_config.query_parameters = new_params
+    ret = {"job_config": job_config}
+    return ret
+
+
 query_fragments={}
 
 query_fragments["difexp_caseq"]= """WITH rna as (
@@ -55,4 +81,7 @@ FROM `isb-cgc.TCGA_hg19_data_v0.RNAseq_Gene_Expression_UNC_RSEM`
 WHERE project_short_name IN ('TCGA-KIRC', 'TCGA-GBM')
 AND HGNC_gene_symbol IN UNNEST(@genelist) 
 GROUP BY 1,2,3,4''', "params":["genelist"] }
+
+set_queries["hm2"] = {"sql": '''SELECT * FROM `isb-cgc.TCGA_hg19_data_v0.RNAseq_Gene_Expression_UNC_RSEM` WHERE project_short_name IN ('TCGA-KIRC', 'TCGA-GBM')
+AND HGNC_gene_symbol IN ('ACVR1','APC')''' }
 

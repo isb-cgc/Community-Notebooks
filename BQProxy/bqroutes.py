@@ -50,6 +50,10 @@ query_url=f"https://bigquery.googleapis.com/bigquery/v2/projects/{project_id}/qu
 pquery_path=f"/bqproxy/bigquery/v2/projects/{project_id}/queries"
 pquery_path_parts=len(pjob_path.split('/'))
 
+
+project_url = f"https://bigquery.googleapis.com/bigquery/v2/projects/"
+project_path = f"/bqproxy/bigquery/v2/projects/"
+
 # Job configuration template
 job_config = {
     "configuration": {
@@ -315,6 +319,27 @@ def get_results(request,jobid):
     credentials.refresh(Request())
     access_token = credentials.token
     url=query_url+'/'+jobid
+    headers = {
+        "Authorization": f"Bearer {access_token}",
+        "Content-Type": "application/json"
+    }
+    response = requests.get(url, headers=headers)
+    resp_data = json.loads(response.content)
+    return jsonify(resp_data)
+
+
+def list_datasets(request,projid):
+    url = project_url + projid + '/datasets'
+    return forward_request(request,url)
+
+def list_tables(request,projid, dsetid):
+    url = project_url + projid + '/datasets/' + dsetid + '/tables'
+    return forward_request(request,url)
+
+
+def forward_request(request,url):
+    credentials.refresh(Request())
+    access_token = credentials.token
     headers = {
         "Authorization": f"Bearer {access_token}",
         "Content-Type": "application/json"

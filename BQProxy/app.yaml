@@ -6,6 +6,9 @@ entrypoint: gunicorn -b :$PORT main:app
 
 service_account: bq-proxy@isb-cgc-dev-1.iam.gserviceaccount.com
 
+vpc_access_connector:
+  name: projects/isb-cgc-dev-1/locations/us-central1/connectors/bq-proxy-connector
+
 #change the project_id. Set credentials_file if running locally
 env_variables:
     PROJECT_ID: "isb-cgc-dev-1"
@@ -18,4 +21,3 @@ env_variables:
     REDIS_PORT: "6379"
     USER_QUERY_OK: "false" 
 
-host: 10.136.26.155
