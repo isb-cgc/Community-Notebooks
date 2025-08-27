@@ -85,3 +85,11 @@ GROUP BY 1,2,3,4''', "params":["genelist"] }
 set_queries["hm2"] = {"sql": '''SELECT * FROM `isb-cgc.TCGA_hg19_data_v0.RNAseq_Gene_Expression_UNC_RSEM` WHERE project_short_name IN ('TCGA-KIRC', 'TCGA-GBM')
 AND HGNC_gene_symbol IN ('ACVR1','APC')''' }
 
+set_queries["qsg1"] = {"sql": '''SELECT
+    proj__project_id,
+    submitter_id,
+    proj__name
+  FROM
+    `isb-cgc-bq.TCGA_versioned.clinical_gdc_r37`
+  LIMIT
+    5'''}

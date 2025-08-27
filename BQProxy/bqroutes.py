@@ -337,13 +337,21 @@ def list_tables(request,projid, dsetid):
     return forward_request(request,url)
 
 
-def forward_request(request,url):
+def forward_request(request, url):
     credentials.refresh(Request())
     access_token = credentials.token
     headers = {
         "Authorization": f"Bearer {access_token}",
         "Content-Type": "application/json"
     }
-    response = requests.get(url, headers=headers)
+    params = dict(request.args)
+    response = requests.get(url, params=params, headers=headers)
     resp_data = json.loads(response.content)
-    return jsonify(resp_data)
+    return jsonify(resp_data), response.status_code
+
+
+def mk_header_dic(response_headers):
+    resp_headers_dic = {}
+    for header, val in response_headers:
+        response_headers[header] = val
+    return resp_headers_dic
