@@ -465,6 +465,32 @@ set_queries["tr7"]={"sql":'''SELECT
                                                                        {"lowest_level":{"val":[True], "type":"boolA"}}],
                      "nb":"How_to_use_the_Targetome_and_Reactome_BQ_datasets"}
 
+set_queries["nt1"] = {"sql": '''SELECT *
+  FROM `isb-cgc-bq.CGCI_versioned.clinical_nested_gdc_r37`
+  WHERE case_id = @case_id''', "params":["case_id"], "tests":[{"case_id":{"val":"c3f876f4-2d3a-4d60-b6c4-019f94010330", "type":"str"}}],
+                      "nb":"How_to_use_nested_tables.ipynb"}
+
+set_queries["nt2"] = {"sql": '''SELECT diagnosis.submitter_id AS diagnosis_submitter_id,
+  treatment.submitter_id AS treatment_submitter_id
+FROM `isb-cgc-bq.CGCI_versioned.clinical_nested_gdc_r37` AS base_case,
+UNNEST(diagnoses) AS diagnosis
+LEFT JOIN UNNEST(diagnosis.treatments) AS treatment
+WHERE case_id =  @case_id''', "params":["case_id"], "tests":[{"case_id":{"val":"39dce88d-112c-4a3d-b2d2-11e0616594d8", "type":"str"}}],
+                      "nb":"How_to_use_nested_tables.ipynb"}
+
+
+set_queries["nt3"] = {"sql": '''SELECT base_case.case_id,
+  diagnosis.diagnosis_id,
+  treatment.treatment_id,
+  follow_up.follow_up_id
+FROM `isb-cgc-bq.CGCI_versioned.clinical_nested_gdc_r37` AS base_case
+LEFT JOIN UNNEST(diagnoses) AS diagnosis
+LEFT JOIN UNNEST(diagnosis.treatments) AS treatment
+LEFT JOIN UNNEST(follow_ups) AS follow_up
+WHERE case_id =  @case_id''', "params":["case_id"], "tests":[{"case_id":{"val":"18395371-3c84-4d39-8ace-a3546e9ea34e", "type":"str"}}],
+                      "nb":"How_to_use_nested_tables.ipynb"}
+
+
 
 
 if __name__== '__main__':
@@ -505,13 +531,13 @@ if __name__== '__main__':
                 if (len(query_params)>0):
 
                     job_config = bigquery.QueryJobConfig(query_parameters = query_params)
-            if queryid =="tr7":
-                try:
-                    res=client.query(sql, job_config).result()
-                    sz = len(list(res))
-                    print(f"query id successful {queryid} with testnum {testnum}. Num rows is {sz}")
-                except Exception as e:
-                    print(f"error with query {queryid}: {e} ")
+
+            try:
+                res=client.query(sql, job_config).result()
+                sz = len(list(res))
+                print(f"successful query id {queryid} with testnum {testnum}. Num rows is {sz}")
+            except Exception as e:
+                print(f"error with query {queryid}, testnum {testnum}: {e} ")
 
 
 
