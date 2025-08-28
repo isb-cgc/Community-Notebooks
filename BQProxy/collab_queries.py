@@ -33,7 +33,7 @@ set_queries["hm1"]= {"sql": '''SELECT project_short_name, sample_barcode, HGNC_g
 FROM `isb-cgc.TCGA_hg19_data_v0.RNAseq_Gene_Expression_UNC_RSEM`
 WHERE project_short_name IN ('TCGA-KIRC', 'TCGA-GBM')
 AND HGNC_gene_symbol IN UNNEST(@genelist) 
-GROUP BY 1,2,3,4''', "params":["genelist"], "testparams": {"genelist":{"val":['APC'], "type":"strA"}}, "nb": "How_to_make_a_heatmap_using_BigQuery.ipynb"}
+GROUP BY 1,2,3,4''', "params":["genelist"], "tests": [{"genelist":{"val":['APC'], "type":"strA"}}], "nb": "How_to_make_a_heatmap_using_BigQuery.ipynb"}
 
 
 set_queries["qsg1"] = {"sql": '''SELECT
@@ -43,12 +43,10 @@ set_queries["qsg1"] = {"sql": '''SELECT
   FROM
     `isb-cgc-bq.TCGA_versioned.clinical_gdc_r37`
   LIMIT
-    5''', "nb":"Quick_Start_Guide_to_ISB_CGC"}
-
-set_queries["tt"]={"sql" :'''SELECT * from `isb-cgc-bq.targetome_versioned.interactions_v1` where targetName = "MS4A1"''', "nb":"test"}
+    5''', "nb":"Quick_Start_Guide_to_ISB_CGC", "tests":[{}] }
 
 set_queries["tt"]={"sql" :'''SELECT * from `isb-cgc-bq.targetome_versioned.interactions_v1` where lower(targetName) = lower(@target_name)''', "nb":"test"
-                   , "params":["target_name"], "testparams": {"target_name":{"val":"MS4A1", "type":"str"}}}
+                   , "params":["target_name"], "tests": [{"target_name":{"val":"MS4A1", "type":"str"}}]}
 
 
 
@@ -71,7 +69,7 @@ set_queries["tr1"] = {"sql": '''SELECT
   WHERE
     LOWER(targsyn.synonym) = LOWER(@target_name)
 
-  ORDER BY drugName ASC''', "params":["target_name"], "testparams": {"target_name":{"val":"MS4A1", "type":"str"}},
+  ORDER BY drugName ASC''', "params":["target_name"], "tests": [{"target_name":{"val":"MS4A1", "type":"str"}}],
                       "nb":"How_to_use_the_Targetome_and_Reactome_BQ_datasets"}
 
 
@@ -99,7 +97,7 @@ set_queries["tr2"] = {"sql": '''SELECT
 
   ORDER BY
     targetName ASC,
-    drugName ASC''', "nb":"How_to_use_the_Targetome_and_Reactome_BQ_datasets"}
+    drugName ASC''', "tests":[{}], "nb":"How_to_use_the_Targetome_and_Reactome_BQ_datasets"}
 
 
 set_queries["tr3"] = {"sql": '''SELECT
@@ -135,7 +133,7 @@ set_queries["tr3"] = {"sql": '''SELECT
     -- limit to just experiments in humans
     AND inter.targetSpecies = 'Homo sapiens'
 
-  ORDER BY inter.targetName ASC''', "params":["drug_name"], "testparams": {"drug_name":{"val":"imatinib", "type":"str"}},
+  ORDER BY inter.targetName ASC''', "params":["drug_name"], "tests": [{"drug_name":{"val":"imatinib", "type":"str"}}],
                       "nb":"How_to_use_the_Targetome_and_Reactome_BQ_datasets"}
 
 
@@ -183,7 +181,7 @@ set_queries["tr4"] = {"sql": '''SELECT
 
     -- filter by stronger evidence: "Traceable Author Statement"
     AND pe2pathway.evidence_code = 'TAS'
-  ORDER BY pathway.name ASC''', "params":["drug_name"], "testparams": {"drug_name":{"val":"imatinib", "type":"str"}},
+  ORDER BY pathway.name ASC''', "params":["drug_name"], "tests": [{"drug_name":{"val":"imatinib", "type":"str"}}],
                       "nb":"How_to_use_the_Targetome_and_Reactome_BQ_datasets"}
 
 
@@ -233,8 +231,10 @@ set_queries["tr5"] = {"sql": '''SELECT
     AND pe2pathway.evidence_code = 'TAS'
 
     -- filter to include just lowest level pathways
-    AND pathway.lowest_level = TRUE
-  ORDER BY pathway.name ASC''', "params":["drug_name"], "testparams": {"drug_name":{"val":"imatinib", "type":"str"}},
+    AND pathway.lowest_level in UNNEST(@lowest_level)
+  ORDER BY pathway.name ASC''', "params":["drug_name", "lowest_level"],
+                      "tests": [{"drug_name":{"val":"imatinib", "type":"str"}, "lowest_level":{"val":[True, False, None], "type":"boolA"}},
+                                {"drug_name":{"val":"imatinib", "type":"str"}, "lowest_level":{"val":[True], "type":"boolA"}}],
                       "nb":"How_to_use_the_Targetome_and_Reactome_BQ_datasets"}
 
 set_queries["tr6"]={"sql":'''
@@ -446,14 +446,24 @@ WITH
   INNER JOIN `isb-cgc-bq.reactome_versioned.pathway_v77` AS pathway
     ON chi_squared_query.stable_id = pathway.stable_id
 
-  WHERE pathway.lowest_level = TRUE
+  WHERE pathway.lowest_level in UNNEST(@lowest_level)
 
   ORDER BY chi_squared_stat DESC
 
-''', "params":["drug_name"], "testparams": {"drug_name":{"val":"sorafenib", "type":"str"}},
+''', "params":["drug_name", "lowest_level"],
+                    "tests": [{"drug_name":{"val":"sorafenib", "type":"str"}, "lowest_level":{"val":[True, False, None], "type":"boolA"}},
+{"drug_name":{"val":"sorafenib", "type":"str"}, "lowest_level":{"val":[True], "type":"boolA"}}],
                       "nb":"How_to_use_the_Targetome_and_Reactome_BQ_datasets"}
 
 
+set_queries["tr7"]={"sql":'''SELECT
+             COUNT (*) AS num_pathways
+          FROM
+             `isb-cgc-bq.reactome_versioned.pathway_v77` as pathway 
+             WHERE lowest_level in UNNEST(@lowest_level)
+             ''', "params":["lowest_level"], "tests":[{"lowest_level":{"val":[True, False, None], "type":"boolA"}},
+                                                                       {"lowest_level":{"val":[True], "type":"boolA"}}],
+                     "nb":"How_to_use_the_Targetome_and_Reactome_BQ_datasets"}
 
 
 
@@ -470,33 +480,38 @@ if __name__== '__main__':
     for queryid in set_queries:
         sql = set_queries[queryid]['sql']
         nb = set_queries[queryid]['nb']
-        if "params" in set_queries[queryid]:
-            query_params=[]
-            for param in set_queries[queryid]["params"]:
-                if param in set_queries[queryid]["testparams"]:
-                    param_val = set_queries[queryid]["testparams"][param]["val"]
-                    ptype = set_queries[queryid]["testparams"][param]["type"]
-                    if ptype=="str":
-                        query_param = bigquery.ScalarQueryParameter(param, "STRING",param_val)
-                    elif ptype=="strA":
-                        query_param = bigquery.ArrayQueryParameter(param, "STRING", param_val)
-                    elif ptype =="int":
-                        query_param = bigquery.ScalarQueryParameter(param, "INT64", param_val)
-                    elif ptype =="intA":
-                        query_param = bigquery.ArrayQueryParameter(param, "INT64", param_val)
-                    query_params.append(query_param)
-        if (len(query_params)>0):
-            job_config = bigquery.QueryJobConfig(
-                    query_parameters = query_params
-            )
-        else:
-                job_config = None
-        try:
-            res=client.query(sql, job_config).result()
-            sz = len(list(res))
-            print(f"query successful {queryid} num rows is {sz}")
-        except Exception as e:
-            print(f"error with query {queryid}: {e} ")
+        for testnum in range(len(set_queries[queryid]["tests"])):
+            job_config = None
+            if "params" in set_queries[queryid]:
+                query_params=[]
+                for param in set_queries[queryid]["params"]:
+                    if param in set_queries[queryid]["tests"][testnum]:
+                        param_val = set_queries[queryid]["tests"][testnum][param]["val"]
+                        ptype = set_queries[queryid]["tests"][testnum][param]["type"]
+                        if ptype=="str":
+                            query_param = bigquery.ScalarQueryParameter(param, "STRING",param_val)
+                        elif ptype=="strA":
+                            query_param = bigquery.ArrayQueryParameter(param, "STRING", param_val)
+                        elif ptype =="int":
+                            query_param = bigquery.ScalarQueryParameter(param, "INT64", param_val)
+                        elif ptype =="intA":
+                            query_param = bigquery.ArrayQueryParameter(param, "INT64", param_val)
+                        elif ptype == "bool":
+                            query_param = bigquery.ScalarQueryParameter(param, "BOOL", param_val)
+                        elif ptype == "boolA":
+                            query_param = bigquery.ArrayQueryParameter(param, "BOOL", param_val)
+
+                        query_params.append(query_param)
+                if (len(query_params)>0):
+
+                    job_config = bigquery.QueryJobConfig(query_parameters = query_params)
+            if queryid =="tr7":
+                try:
+                    res=client.query(sql, job_config).result()
+                    sz = len(list(res))
+                    print(f"query id successful {queryid} with testnum {testnum}. Num rows is {sz}")
+                except Exception as e:
+                    print(f"error with query {queryid}: {e} ")
 
 
 
