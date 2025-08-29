@@ -473,8 +473,10 @@ FROM `isb-cgc-bq.CGCI_versioned.clinical_nested_gdc_r37`
 
 
 
+#this query works natively but not when sent thru the proxy server. I don't know why. It is the only query tested so far that
+#returns a nested table
 
-set_queries["nt1"] = {"sql": '''SELECT disease_type FROM `isb-cgc-bq.CGCI_versioned.clinical_nested_gdc_r37`
+set_queries["nt1"] = {"sql": '''SELECT * FROM `isb-cgc-bq.CGCI_versioned.clinical_nested_gdc_r37`
   WHERE case_id = @case_id''', "params":["case_id"], "tests":[{"case_id":{"val":"c3f876f4-2d3a-4d60-b6c4-019f94010330", "type":"str"}}],
                       "nb":"How_to_use_nested_tables.ipynb"}
 
