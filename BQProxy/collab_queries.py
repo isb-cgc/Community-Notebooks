@@ -465,12 +465,27 @@ set_queries["tr7"]={"sql":'''SELECT
                                                                        {"lowest_level":{"val":[True], "type":"boolA"}}],
                      "nb":"How_to_use_the_Targetome_and_Reactome_BQ_datasets"}
 
-set_queries["nt1"] = {"sql": '''SELECT *
-  FROM `isb-cgc-bq.CGCI_versioned.clinical_nested_gdc_r37`
+
+set_queries["nt0"] = {"sql": '''SELECT diagnoses
+FROM `isb-cgc-bq.CGCI_versioned.clinical_nested_gdc_r37`
   WHERE case_id = @case_id''', "params":["case_id"], "tests":[{"case_id":{"val":"c3f876f4-2d3a-4d60-b6c4-019f94010330", "type":"str"}}],
                       "nb":"How_to_use_nested_tables.ipynb"}
 
-set_queries["nt2"] = {"sql": '''SELECT diagnosis.submitter_id AS diagnosis_submitter_id,
+
+
+
+set_queries["nt1"] = {"sql": '''SELECT disease_type FROM `isb-cgc-bq.CGCI_versioned.clinical_nested_gdc_r37`
+  WHERE case_id = @case_id''', "params":["case_id"], "tests":[{"case_id":{"val":"c3f876f4-2d3a-4d60-b6c4-019f94010330", "type":"str"}}],
+                      "nb":"How_to_use_nested_tables.ipynb"}
+
+set_queries["nt2"] = {"sql": '''SELECT treatment.treatment_id
+FROM `isb-cgc-bq.CGCI_versioned.clinical_nested_gdc_r37`,
+UNNEST(diagnoses) AS diagnosis, # first we unnest diagnoses to access its columns
+UNNEST(treatments) AS treatment
+  WHERE case_id = @case_id''', "params":["case_id"], "tests":[{"case_id":{"val":"c3f876f4-2d3a-4d60-b6c4-019f94010330", "type":"str"}}],
+                      "nb":"How_to_use_nested_tables.ipynb"}
+
+set_queries["nt3"] = {"sql": '''SELECT diagnosis.submitter_id AS diagnosis_submitter_id,
   treatment.submitter_id AS treatment_submitter_id
 FROM `isb-cgc-bq.CGCI_versioned.clinical_nested_gdc_r37` AS base_case,
 UNNEST(diagnoses) AS diagnosis
@@ -479,7 +494,7 @@ WHERE case_id =  @case_id''', "params":["case_id"], "tests":[{"case_id":{"val":"
                       "nb":"How_to_use_nested_tables.ipynb"}
 
 
-set_queries["nt3"] = {"sql": '''SELECT base_case.case_id,
+set_queries["nt4"] = {"sql": '''SELECT base_case.case_id,
   diagnosis.diagnosis_id,
   treatment.treatment_id,
   follow_up.follow_up_id
