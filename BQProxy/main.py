@@ -36,11 +36,9 @@ def life_check():
 def flask_submit_job():
     return submit_job(request)
 
-
 @app.route(pjob_path+'/'+'<path:jobid>', methods=['GET'])
 def flask_check_job(jobid):
     return check_job(request, jobid)
-
 
 @app.route(pquery_path+'/'+'<string:jobid>', methods=['GET'])
 def flask_get_results(jobid):
@@ -53,7 +51,6 @@ def flask_list_datasets(projid):
 @app.route(project_path+'/'+'<string:projid>'+'/datasets/'+'<string:dsetid>'+'/tables', methods=['GET'])
 def flask_list_tables(projid,dsetid):
     return list_tables(request,projid,dsetid)
-
 
 # Error handlers
 @app.errorhandler(500)

@@ -20,7 +20,7 @@ expiry_time_seconds= 24*60*60
 has_daily_quota = ((os.environ["HAS_DAILY_QUOTA"]).lower() == "true")
 daily_quota_gb = float(os.environ["DAILY_QUOTA_GB"])
 query_quota_gb = float(os.environ["QUERY_QUOTA_GB"])
-user_query_ok = ((os.environ["USER_QUERY_OK"]).lower() == "true")
+user_query_ok = False
 redis_client=None
 
 if has_daily_quota:
