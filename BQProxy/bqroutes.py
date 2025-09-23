@@ -250,9 +250,8 @@ def submit_job(request):
     response_code = 400
     try:
         user_ip=request.remote_addr
-        dry_run_req =False
+        dry_run_req = False
         orig_jobReference = None
-        response_code=200
         credentials.refresh(Request())
         access_token = credentials.token
         headers = {
@@ -275,14 +274,13 @@ def submit_job(request):
             data['configuration']['dry_run'] = True
             data['configuration']['query']['useQueryCache'] = False
 
-
             #save original jobRefernce for actual run. make a new jobid for dry run
             if not dry_run_req:
                 if 'jobReference' in data:
                     orig_jobReference ={}
                     for key in data['jobReference']:
                         orig_jobReference[key]=data['jobReference'][key]
-                    if ('jobId' in  data['jobReference']):
+                    if 'jobId' in data['jobReference']:
                         data['jobReference']['jobId']=str(uuid.uuid4())
 
             jdata = json.dumps(data)
@@ -292,7 +290,6 @@ def submit_job(request):
             if dry_run_req or not (dry_response.status_code==200):
                 resp_data = json.loads(dry_response.content)
                 response_code = dry_response.status_code
-                #response_code = 200
             else:
                 [quotas_ok, err] = check_quotas(json.loads(dry_response.content), user_ip)
                 if quotas_ok:
