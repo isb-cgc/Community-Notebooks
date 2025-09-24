@@ -1,0 +1,267 @@
+{
+	"hm1": {
+		"sql": "SELECT project_short_name, sample_barcode, HGNC_gene_symbol, normalized_count FROM `isb-cgc.TCGA_hg19_data_v0.RNAseq_Gene_Expression_UNC_RSEM` WHERE project_short_name IN ('TCGA-KIRC', 'TCGA-GBM') AND HGNC_gene_symbol IN UNNEST(@genelist) GROUP BY 1,2,3,4",
+		"params": [
+			"genelist"
+		],
+		"tests": [
+			{
+				"genelist": {
+					"val": [
+						"APC"
+					],
+					"type": "strA"
+				}
+			}
+		],
+		"nb": "How_to_make_a_heatmap_using_BigQuery.ipynb"
+	},
+	"qsg1": {
+		"sql": "SELECT proj__project_id, submitter_id, proj__name FROM `isb-cgc-bq.TCGA_versioned.clinical_gdc_r37` LIMIT 5",
+		"nb": "Quick_Start_Guide_to_ISB_CGC",
+		"tests": [
+			{}
+		]
+	},
+	"tt": {
+		"sql": "SELECT * from `isb-cgc-bq.targetome_versioned.interactions_v1` where lower(targetName) = lower(@target_name)",
+		"nb": "test",
+		"params": [
+			"target_name"
+		],
+		"tests": [
+			{
+				"target_name": {
+					"val": "MS4A1",
+					"type": "str"
+				}
+			}
+		]
+	},
+	"tr1": {
+		"sql": "SELECT inter.targetName, inter.drugName, src.PubMedID FROM `isb-cgc-bq.targetome_versioned.interactions_v1` AS inter INNER JOIN `isb-cgc-bq.targetome_versioned.sources_v1` AS src ON inter.sourceID = src.sourceID INNER JOIN `isb-cgc-bq.targetome_versioned.target_synonyms_v1` AS targsyn ON inter.targetID = targsyn.targetID WHERE LOWER(targsyn.synonym) = LOWER(@target_name) ORDER BY drugName ASC",
+		"params": [
+			"target_name"
+		],
+		"tests": [
+			{
+				"target_name": {
+					"val": "MS4A1",
+					"type": "str"
+				}
+			}
+		],
+		"nb": "How_to_use_the_Targetome_and_Reactome_BQ_datasets"
+	},
+	"tr2": {
+		"sql": "SELECT DISTINCT inter.interactionID, inter.drugName, inter.targetName FROM `isb-cgc-bq.targetome_versioned.interactions_v1` AS inter INNER JOIN `isb-cgc-bq.targetome_versioned.experiments_v1` AS exp ON inter.expID = exp.expID WHERE exp.exp_assayType IS NOT NULL AND exp.exp_assayRelation = '=' AND inter.targetSpecies = 'Homo sapiens' ORDER BY targetName ASC, drugName ASC",
+		"tests": [
+			{}
+		],
+		"nb": "How_to_use_the_Targetome_and_Reactome_BQ_datasets"
+	},
+	"tr3": {
+		"sql": "SELECT DISTINCT inter.* EXCEPT (sourceID), exp.exp_assayType, exp.exp_assayValueMedian FROM `isb-cgc-bq.targetome_versioned.interactions_v1` AS inter INNER JOIN `isb-cgc-bq.targetome_versioned.experiments_v1` AS exp ON inter.expID = exp.expID INNER JOIN `isb-cgc-bq.targetome_versioned.drug_synonyms_v1` AS drugsyn ON inter.drugID = drugsyn.drugID WHERE LOWER(drugsyn.synonym) = LOWER(@drug_name) AND exp.exp_assayValueMedian <= 100 AND (exp.exp_assayValueLow <= 100 OR exp.exp_assayValueLow is null) AND (exp.exp_assayValueHigh <= 100 OR exp.exp_assayValueHigh is null) AND exp.exp_assayType IS NOT NULL AND exp.exp_assayRelation = '=' AND inter.targetSpecies = 'Homo sapiens' ORDER BY inter.targetName ASC",
+		"params": [
+			"drug_name"
+		],
+		"tests": [
+			{
+				"drug_name": {
+					"val": "imatinib",
+					"type": "str"
+				}
+			}
+		],
+		"nb": "How_to_use_the_Targetome_and_Reactome_BQ_datasets"
+	},
+	"tr4": {
+		"sql": "SELECT DISTINCT pathway.* FROM `isb-cgc-bq.reactome_versioned.pathway_v77` as pathway INNER JOIN `isb-cgc-bq.reactome_versioned.pe_to_pathway_v77` as pe2pathway ON pathway.stable_id = pe2pathway.pathway_stable_id INNER JOIN `isb-cgc-bq.reactome_versioned.physical_entity_v77` AS pe ON pe2pathway.pe_stable_id = pe.stable_id INNER JOIN `isb-cgc-bq.targetome_versioned.interactions_v1` AS inter ON pe.uniprot_id = inter.target_uniprotID INNER JOIN `isb-cgc-bq.targetome_versioned.experiments_v1` AS exp ON inter.expID = exp.expID INNER JOIN `isb-cgc-bq.targetome_versioned.drug_synonyms_v1` AS drugsyn ON inter.drugID = drugsyn.drugID WHERE LOWER(drugsyn.synonym) = LOWER(@drug_name) AND exp.exp_assayValueMedian <= 100 AND (exp.exp_assayValueLow <= 100 OR exp.exp_assayValueLow is null) AND (exp.exp_assayValueHigh <= 100 OR exp.exp_assayValueHigh is null) AND exp.exp_assayType IS NOT NULL AND exp.exp_assayRelation = '=' AND inter.targetSpecies = 'Homo sapiens' AND pe2pathway.evidence_code = 'TAS' ORDER BY pathway.name ASC",
+		"params": [
+			"drug_name"
+		],
+		"tests": [
+			{
+				"drug_name": {
+					"val": "imatinib",
+					"type": "str"
+				}
+			}
+		],
+		"nb": "How_to_use_the_Targetome_and_Reactome_BQ_datasets"
+	},
+	"tr5": {
+		"sql": "SELECT DISTINCT pathway.* FROM `isb-cgc-bq.reactome_versioned.pathway_v77` as pathway INNER JOIN `isb-cgc-bq.reactome_versioned.pe_to_pathway_v77` as pe2pathway ON pathway.stable_id = pe2pathway.pathway_stable_id INNER JOIN `isb-cgc-bq.reactome_versioned.physical_entity_v77` AS pe ON pe2pathway.pe_stable_id = pe.stable_id INNER JOIN `isb-cgc-bq.targetome_versioned.interactions_v1` AS inter ON pe.uniprot_id = inter.target_uniprotID INNER JOIN `isb-cgc-bq.targetome_versioned.experiments_v1` AS exp ON inter.expID = exp.expID INNER JOIN `isb-cgc-bq.targetome_versioned.drug_synonyms_v1` AS drugsyn ON inter.drugID = drugsyn.drugID WHERE LOWER(drugsyn.synonym) = LOWER(@drug_name) AND exp.exp_assayValueMedian <= 100 AND (exp.exp_assayValueLow <= 100 OR exp.exp_assayValueLow is null) AND (exp.exp_assayValueHigh <= 100 OR exp.exp_assayValueHigh is null) AND exp.exp_assayType IS NOT NULL AND exp.exp_assayRelation = '=' AND inter.targetSpecies = 'Homo sapiens' AND pe2pathway.evidence_code = 'TAS' AND pathway.lowest_level in UNNEST(@lowest_level) ORDER BY pathway.name ASC",
+		"params": [
+			"drug_name",
+			"lowest_level"
+		],
+		"tests": [
+			{
+				"drug_name": {
+					"val": "imatinib",
+					"type": "str"
+				},
+				"lowest_level": {
+					"val": [
+						true,
+						false,
+						null
+					],
+					"type": "boolA"
+				}
+			},
+			{
+				"drug_name": {
+					"val": "imatinib",
+					"type": "str"
+				},
+				"lowest_level": {
+					"val": [
+						true
+					],
+					"type": "boolA"
+				}
+			}
+		],
+		"nb": "How_to_use_the_Targetome_and_Reactome_BQ_datasets"
+	},
+	"tr6": {
+		"sql": "WITH target_list_query AS ( SELECT DISTINCT inter.target_uniprotID FROM `isb-cgc-bq.targetome_versioned.interactions_v1` AS inter INNER JOIN `isb-cgc-bq.targetome_versioned.drug_synonyms_v1` AS drugsyn ON inter.drugID = drugsyn.drugID INNER JOIN `isb-cgc-bq.targetome_versioned.experiments_v1` AS exp ON inter.expID = exp.expID INNER JOIN `isb-cgc-bq.reactome_versioned.physical_entity_v77` AS pe ON inter.target_uniprotID = pe.uniprot_id WHERE LOWER(drugsyn.synonym) = LOWER(@drug_name) AND exp.exp_assayValueMedian <= 100 AND (exp.exp_assayValueLow <= 100 OR exp.exp_assayValueLow is null) AND (exp.exp_assayValueHigh <= 100 OR exp.exp_assayValueHigh is null) AND exp.exp_assayType IS NOT NULL AND exp.exp_assayRelation = '=' AND inter.targetSpecies = 'Homo sapiens' ), target_pp_query AS ( SELECT COUNT(DISTINCT target_list_query.target_uniprotID) as num_targets, pathway.stable_id, pathway.name FROM target_list_query INNER JOIN `isb-cgc-bq.reactome_versioned.physical_entity_v77` AS pe ON target_list_query.target_uniprotID = pe.uniprot_id INNER JOIN `isb-cgc-bq.reactome_versioned.pe_to_pathway_v77` AS pe2pathway ON pe.stable_id = pe2pathway.pe_stable_id INNER JOIN `isb-cgc-bq.reactome_versioned.pathway_v77` AS pathway ON pe2pathway.pathway_stable_id = pathway.stable_id WHERE pe2pathway.evidence_code = 'TAS' GROUP BY pathway.stable_id, pathway.name ORDER BY num_targets DESC ), not_target_list_query AS ( SELECT DISTINCT inter.target_uniprotID AS target_uniprotID FROM `isb-cgc-bq.targetome_versioned.interactions_v1` AS inter WHERE inter.targetSpecies = 'Homo sapiens' AND inter.target_uniprotID NOT IN ( SELECT target_uniprotID FROM target_list_query ) ), not_target_pp_query AS ( SELECT COUNT(DISTINCT not_target_list_query.target_uniprotID) AS num_not_targets, pathway.stable_id, pathway.name FROM not_target_list_query INNER JOIN `isb-cgc-bq.reactome_versioned.physical_entity_v77` AS pe ON not_target_list_query.target_uniprotID = pe.uniprot_id INNER JOIN `isb-cgc-bq.reactome_versioned.pe_to_pathway_v77` AS pe2pathway ON pe.stable_id = pe2pathway.pe_stable_id INNER JOIN `isb-cgc-bq.reactome_versioned.pathway_v77` AS pathway ON pe2pathway.pathway_stable_id = pathway.stable_id WHERE pe2pathway.evidence_code = 'TAS' GROUP BY pathway.stable_id, pathway.name ORDER BY num_not_targets DESC ), target_count_query AS ( SELECT target_count, not_target_count, target_count + not_target_count AS total_count FROM (SELECT COUNT(*) AS target_count FROM target_list_query), (SELECT COUNT(*) AS not_target_count FROM not_target_list_query) ), observed_query AS ( SELECT target_pp_query.num_targets AS in_target_in_pathway, not_target_pp_query.num_not_targets AS not_target_in_pathway, target_count_query.target_count - target_pp_query.num_targets AS in_target_not_pathway, target_count_query.not_target_count - not_target_pp_query.num_not_targets AS not_target_not_pathway, target_pp_query.stable_id, target_pp_query.name FROM target_pp_query, target_count_query INNER JOIN not_target_pp_query ON target_pp_query.stable_id = not_target_pp_query.stable_id ), sum_query AS ( SELECT observed_query.in_target_in_pathway + observed_query.not_target_in_pathway AS pathway_total, observed_query.in_target_not_pathway + observed_query.not_target_not_pathway AS not_pathway_total, observed_query.in_target_in_pathway + observed_query.in_target_not_pathway AS target_total, observed_query.not_target_in_pathway + observed_query.not_target_not_pathway AS not_target_total, observed_query.stable_id, observed_query.name FROM observed_query ), expected_query AS ( SELECT sum_query.target_total * sum_query.pathway_total / target_count_query.total_count AS exp_in_target_in_pathway, sum_query.not_target_total * sum_query.pathway_total / target_count_query.total_count AS exp_not_target_in_pathway, sum_query.target_total * sum_query.not_pathway_total / target_count_query.total_count AS exp_in_target_not_pathway, sum_query.not_target_total * sum_query.not_pathway_total / target_count_query.total_count AS exp_not_target_not_pathway, sum_query.stable_id, sum_query.name FROM sum_query, target_count_query ), chi_squared_query AS ( SELECT POW(ABS(observed_query.in_target_in_pathway - expected_query.exp_in_target_in_pathway) - 0.5, 2) / expected_query.exp_in_target_in_pathway + POW(ABS(observed_query.not_target_in_pathway - expected_query.exp_not_target_in_pathway) - 0.5, 2) / expected_query.exp_not_target_in_pathway + POW(ABS(observed_query.in_target_not_pathway - expected_query.exp_in_target_not_pathway) - 0.5, 2) / expected_query.exp_in_target_not_pathway + POW(ABS(observed_query.not_target_not_pathway - expected_query.exp_not_target_not_pathway) - 0.5, 2) / expected_query.exp_not_target_not_pathway AS chi_squared_stat, observed_query.stable_id, observed_query.name FROM observed_query INNER JOIN expected_query ON observed_query.stable_id = expected_query.stable_id ) SELECT observed_query.in_target_in_pathway, observed_query.in_target_not_pathway, observed_query.not_target_in_pathway, observed_query.not_target_not_pathway, chi_squared_query.chi_squared_stat, chi_squared_query.stable_id, chi_squared_query.name FROM chi_squared_query INNER JOIN observed_query ON chi_squared_query.stable_id = observed_query.stable_id INNER JOIN `isb-cgc-bq.reactome_versioned.pathway_v77` AS pathway ON chi_squared_query.stable_id = pathway.stable_id WHERE pathway.lowest_level in UNNEST(@lowest_level) ORDER BY chi_squared_stat DESC",
+		"params": [
+			"drug_name",
+			"lowest_level"
+		],
+		"tests": [
+			{
+				"drug_name": {
+					"val": "sorafenib",
+					"type": "str"
+				},
+				"lowest_level": {
+					"val": [
+						true,
+						false,
+						null
+					],
+					"type": "boolA"
+				}
+			},
+			{
+				"drug_name": {
+					"val": "sorafenib",
+					"type": "str"
+				},
+				"lowest_level": {
+					"val": [
+						true
+					],
+					"type": "boolA"
+				}
+			}
+		],
+		"nb": "How_to_use_the_Targetome_and_Reactome_BQ_datasets"
+	},
+	"tr7": {
+		"sql": "SELECT COUNT (*) AS num_pathways FROM `isb-cgc-bq.reactome_versioned.pathway_v77` as pathway WHERE lowest_level in UNNEST(@lowest_level) ",
+		"params": [
+			"lowest_level"
+		],
+		"tests": [
+			{
+				"lowest_level": {
+					"val": [
+						true,
+						false,
+						null
+					],
+					"type": "boolA"
+				}
+			},
+			{
+				"lowest_level": {
+					"val": [
+						true
+					],
+					"type": "boolA"
+				}
+			}
+		],
+		"nb": "How_to_use_the_Targetome_and_Reactome_BQ_datasets"
+	},
+	"nt0": {
+		"sql": "SELECT diagnoses FROM `isb-cgc-bq.CGCI_versioned.clinical_nested_gdc_r37` WHERE case_id = @case_id",
+		"params": [
+			"case_id"
+		],
+		"tests": [
+			{
+				"case_id": {
+					"val": "c3f876f4-2d3a-4d60-b6c4-019f94010330",
+					"type": "str"
+				}
+			}
+		],
+		"nb": "How_to_use_nested_tables.ipynb"
+	},
+	"nt1": {
+		"sql": "SELECT * FROM `isb-cgc-bq.CGCI_versioned.clinical_nested_gdc_r37` WHERE case_id = @case_id",
+		"params": [
+			"case_id"
+		],
+		"tests": [
+			{
+				"case_id": {
+					"val": "c3f876f4-2d3a-4d60-b6c4-019f94010330",
+					"type": "str"
+				}
+			}
+		],
+		"nb": "How_to_use_nested_tables.ipynb"
+	},
+	"nt2": {
+		"sql": "SELECT treatment.treatment_id FROM `isb-cgc-bq.CGCI_versioned.clinical_nested_gdc_r37`, UNNEST(diagnoses) AS diagnosis, UNNEST(treatments) AS treatment WHERE case_id = @case_id",
+		"params": [
+			"case_id"
+		],
+		"tests": [
+			{
+				"case_id": {
+					"val": "c3f876f4-2d3a-4d60-b6c4-019f94010330",
+					"type": "str"
+				}
+			}
+		],
+		"nb": "How_to_use_nested_tables.ipynb"
+	},
+	"nt3": {
+		"sql": "SELECT diagnosis.submitter_id AS diagnosis_submitter_id, treatment.submitter_id AS treatment_submitter_id FROM `isb-cgc-bq.CGCI_versioned.clinical_nested_gdc_r37` AS base_case, UNNEST(diagnoses) AS diagnosis LEFT JOIN UNNEST(diagnosis.treatments) AS treatment WHERE case_id =  @case_id",
+		"params": [
+			"case_id"
+		],
+		"tests": [
+			{
+				"case_id": {
+					"val": "39dce88d-112c-4a3d-b2d2-11e0616594d8",
+					"type": "str"
+				}
+			}
+		],
+		"nb": "How_to_use_nested_tables.ipynb"
+	},
+	"nt4": {
+		"sql": "SELECT base_case.case_id, diagnosis.diagnosis_id, treatment.treatment_id, follow_up.follow_up_id FROM `isb-cgc-bq.CGCI_versioned.clinical_nested_gdc_r37` AS base_case LEFT JOIN UNNEST(diagnoses) AS diagnosis LEFT JOIN UNNEST(diagnosis.treatments) AS treatment LEFT JOIN UNNEST(follow_ups) AS follow_up WHERE case_id =  @case_id",
+		"params": [
+			"case_id"
+		],
+		"tests": [
+			{
+				"case_id": {
+					"val": "18395371-3c84-4d39-8ace-a3546e9ea34e",
+					"type": "str"
+				}
+			}
+		],
+		"nb": "How_to_use_nested_tables.ipynb"
+	}
+}
